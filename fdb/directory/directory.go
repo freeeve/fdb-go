@@ -25,7 +25,6 @@ package directory
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
-	"bytes"
 )
 
 const SUBDIRS int = 0
@@ -62,139 +61,7 @@ type Directory interface {
 
 	CheckLayer(layer []byte) error
 
-	DirectoryLayer() DirectoryLayer
-
 	getLayerForPath(path []string) DirectoryLayer
-}
-
-type directory struct {
-	dl DirectoryLayer
-	path []string
-	layer []byte
-}
-
-func (d directory) partitionSubpath(path []string, dl *DirectoryLayer) []string {
-	if dl == nil {
-		dl = &d.dl
-	}
-	return append(append([]string{}, d.path[len(dl.path):]...), path...)
-}
-
-func (d directory) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.CreateOrOpen(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directory) Create(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Create(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directory) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.CreatePrefix(tr, d.partitionSubpath(path, nil), layer, prefix)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directory) Open(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Open(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func stringsEqual(a, b []string) bool {
-    if len(a) != len(b) {
-        return false
-    }
-    for i, v := range a {
-        if v != b[i] {
-            return false
-        }
-    }
-    return true
-}
-
-func (d directory) MoveTo(t fdb.Transactor, newAbsolutePath []string) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath([]string{})
-		partition_len := len(dl.path)
-		partition_path := newAbsolutePath[:partition_len]
-
-		if !stringsEqual(partition_path, dl.path) {
-			return nil, Error{"Cannot move between partitions."}
-		}
-
-		return dl.Move(tr, d.path[partition_len:], newAbsolutePath[partition_len:])
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directory) Move(t fdb.Transactor, oldPath []string, newPath []string) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Move(tr, d.partitionSubpath(oldPath, nil), d.partitionSubpath(newPath, nil))
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directory) Remove(t fdb.Transactor, path []string) (bool, error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath(path)
-		return dl.Remove(tr, d.partitionSubpath(path, &dl))
-	})
-	return r.(bool), e
-}
-
-func (d directory) Exists(t fdb.Transactor, path []string) (bool, error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath(path)
-		return dl.Exists(tr, d.partitionSubpath(path, &dl))
-	})
-	return r.(bool), e
-}
-
-func (d directory) List(t fdb.Transactor, path []string) (subdirs []string, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.List(tr, d.partitionSubpath(path, nil))
-	})
-	if e == nil {
-		subdirs = r.([]string)
-	}
-	return
-}
-
-func (d directory) CheckLayer(layer []byte) error {
-	if layer != nil && bytes.Compare(layer, d.layer) != 0 {
-		return Error{"The directory was created with an incompatible layer."}
-	}
-	return nil
-}
-
-func (d directory) getLayerForPath(path []string) DirectoryLayer {
-	return d.dl
 }
 
 var root *DirectoryLayer

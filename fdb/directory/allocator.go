@@ -56,7 +56,7 @@ func windowSize(start int64) int64 {
 	return 8192
 }
 
-func (hca highContentionAllocator) allocate(t fdb.Transactor) ([]byte, error) {
+func (hca highContentionAllocator) allocate(t fdb.Transactor) []byte {
 	ret, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		rr := tr.Snapshot().GetRange(hca.counters, fdb.RangeOptions{Limit:1, Reverse:true})
 		kvs := rr.GetSliceOrPanic()
@@ -106,5 +106,5 @@ func (hca highContentionAllocator) allocate(t fdb.Transactor) ([]byte, error) {
 	})
 	if e != nil { panic(e) }
 
-	return ret.([]byte), nil
+	return ret.([]byte)
 }
