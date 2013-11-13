@@ -24,7 +24,6 @@ package directory
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
-	"github.com/FoundationDB/fdb-go/fdb/tuple"
 	"encoding/binary"
 	"bytes"
 	"math/rand"
@@ -56,7 +55,7 @@ func windowSize(start int64) int64 {
 	return 8192
 }
 
-func (hca highContentionAllocator) allocate(t fdb.Transactor) []byte {
+func (hca highContentionAllocator) allocate(t fdb.Transactor, s subspace.Subspace) subspace.Subspace {
 	ret, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		rr := tr.Snapshot().GetRange(hca.counters, fdb.RangeOptions{Limit:1, Reverse:true})
 		kvs := rr.GetSliceOrPanic()
@@ -80,10 +79,8 @@ func (hca highContentionAllocator) allocate(t fdb.Transactor) []byte {
 
 		if (count + 1) * 2 >= window {
 			// Advance the window
-			// tr.ClearRange(hca.counters, append(subspaceAdd(hca.counters, start), 0x00))
 			tr.ClearRange(fdb.KeyRange{hca.counters, append(hca.counters.Sub(start).ToFDBKey(), 0x00)})
 			start += window
-			// tr.ClearRange(hca.recent, subspaceAdd(hca.recent, start))
 			tr.ClearRange(fdb.KeyRange{hca.recent, hca.recent.Sub(start)})
 			window = windowSize(start)
 		}
@@ -100,11 +97,11 @@ func (hca highContentionAllocator) allocate(t fdb.Transactor) []byte {
 			key := hca.recent.Sub(candidate)
 			if tr.Get(key).GetOrPanic() == nil {
 				tr.Set(key, []byte(""))
-				return tuple.Tuple{candidate}.Pack(), nil
+				return s.Sub(candidate), nil
 			}
 		}
 	})
 	if e != nil { panic(e) }
 
-	return ret.([]byte)
+	return ret.(subspace.Subspace)
 }

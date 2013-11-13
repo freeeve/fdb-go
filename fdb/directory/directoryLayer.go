@@ -46,7 +46,7 @@ func NewDirectoryLayer(nodeSS subspace.Subspace, contentSS subspace.Subspace, pa
 	dl.nodeSS = nodeSS
 	dl.contentSS = contentSS
 
-	dl.rootNode = dl.nodeSS.Sub(dl.nodeSS.Key())
+	dl.rootNode = dl.nodeSS.Sub(dl.nodeSS.Bytes())
 	dl.allocator = newHCA(dl.rootNode.Sub([]byte("hca")))
 
 	dl.path = path
@@ -94,8 +94,7 @@ func (dl DirectoryLayer) createOrOpen(tr fdb.Transaction, path []string, layer [
 	dl.checkVersion(tr, true)
 
 	if prefix == nil {
-		a := dl.allocator.allocate(tr)
-		prefix = append(append([]byte{}, dl.contentSS.Key()...), a...)
+		prefix = dl.allocator.allocate(tr, dl.contentSS).Bytes()
 	}
 
 	if !dl.isPrefixFree(tr, prefix) {
@@ -105,7 +104,7 @@ func (dl DirectoryLayer) createOrOpen(tr fdb.Transaction, path []string, layer [
 	var parentNode subspace.Subspace
 
 	if len(path) > 1 {
-		parentNode = dl.nodeWithPrefix(dl.createOrOpen(tr, path[:len(path)-1], nil, nil, true, true).Key())
+		parentNode = dl.nodeWithPrefix(dl.createOrOpen(tr, path[:len(path)-1], nil, nil, true, true).Bytes())
 	} else {
 		parentNode = dl.rootNode
 	}
@@ -223,7 +222,10 @@ func (dl DirectoryLayer) List(t fdb.Transactor, path []string) (subdirs []string
 
 		return dl.subdirNames(tr, node.subspace), nil
 	})
-	return r.([]string), e
+	if e == nil {
+		subdirs = r.([]string)
+	}
+	return
 }
 
 func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (ds DirectorySubspace, e error) {
@@ -272,7 +274,7 @@ func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []stri
 			return nil, Error{"The parent of the destination directory does not exist. Create it first."}
 		}
 
-		p, e := dl.nodeSS.Unpack(oldNode.subspace.Key())
+		p, e := dl.nodeSS.Unpack(oldNode.subspace)
 		if e != nil { panic(e) }
 		tr.Set(parentNode.subspace.Sub(SUBDIRS, newPath[len(newPath)-1]), p[0].([]byte))
 
@@ -324,7 +326,7 @@ func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subsp
 		dl.removeRecursive(tr, nodes[i])
 	}
 
-	p, e := dl.nodeSS.Unpack(node.Key())
+	p, e := dl.nodeSS.Unpack(node)
 	if e != nil { panic(e) }
 	kr, e := fdb.PrefixRange(p[0].([]byte))
 	if e != nil { panic(e) }
@@ -383,7 +385,7 @@ func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 }
 
 func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) subspace.Subspace {
-	if bytes.HasPrefix(key, dl.nodeSS.Key()) {
+	if bytes.HasPrefix(key, dl.nodeSS.Bytes()) {
 		return dl.rootNode
 	}
 
@@ -463,7 +465,7 @@ func (dl DirectoryLayer) initializeDirectory(tr fdb.Transaction) {
 }
 
 func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, layer []byte) DirectorySubspace {
-	p, err := dl.nodeSS.Unpack(node.Key())
+	p, err := dl.nodeSS.Unpack(node)
 	if err != nil { panic(err) }
 	prefix := p[0]
 
@@ -474,7 +476,11 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 	ss := subspace.FromRawBytes(prefix.([]byte))
 
 	if bytes.Compare(layer, []byte("partition")) == 0 {
-		return DirectoryPartition{ss, NewDirectoryLayer(ss.Sub(0xFE), ss, newPath), dl}
+		ssb := ss.Bytes()
+		nssb := make([]byte, len(ssb) + 1)
+		copy(nssb, ssb)
+		nssb[len(ssb)] = 0xFE
+		return DirectoryPartition{ss, NewDirectoryLayer(subspace.FromRawBytes(nssb), ss, newPath), dl}
 	} else {
 		return directorySubspace{ss, dl, newPath, layer}
 	}

@@ -428,6 +428,14 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		sm.store(idx, []byte("SET_CONFLICT_KEY"))
 	case "ATOMIC_OP":
 		opname := strings.Title(strings.ToLower(string(sm.waitAndPop().item.([]byte))))
+		switch opname {
+		case "And":
+			opname = "BitAnd"
+		case "Or":
+			opname = "BitOr"
+		case "Xor":
+			opname = "BitXor"
+		}
 		key := fdb.Key(sm.waitAndPop().item.([]byte))
 		value := sm.waitAndPop().item.([]byte)
 		reflect.ValueOf(obj).MethodByName(opname).Call([]reflect.Value{reflect.ValueOf(key), reflect.ValueOf(value)})

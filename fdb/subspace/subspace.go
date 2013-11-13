@@ -32,7 +32,7 @@ import (
 type Subspace interface {
 	Sub(el ...interface{}) Subspace
 
-	Key() fdb.Key
+	Bytes() []byte
 
 	Pack(t tuple.Tuple) []byte
 	Unpack(k fdb.KeyConvertible) (tuple.Tuple, error)
@@ -50,7 +50,7 @@ func AllKeys() Subspace {
 }
 
 func FromTuple(t tuple.Tuple) Subspace {
-	return AllKeys().Sub(t...)
+	return subspace(t.Pack())
 }
 
 func FromRawBytes(raw []byte) Subspace {
@@ -60,15 +60,15 @@ func FromRawBytes(raw []byte) Subspace {
 }
 
 func (s subspace) Sub(el ...interface{}) Subspace {
-	return append(append(subspace{}, s...), tuple.Tuple(el).Pack()...)
+	return subspace(concat(s, tuple.Tuple(el).Pack()...))
 }
 
-func (s subspace) Key() fdb.Key {
-	return fdb.Key(s)
+func (s subspace) Bytes() []byte {
+	return []byte(s)
 }
 
-func (s subspace) Pack(tuple tuple.Tuple) []byte {
-	return append(append(subspace{}, s...), tuple.Pack()...)
+func (s subspace) Pack(t tuple.Tuple) []byte {
+	return concat(s, t.Pack()...)
 }
 
 func (s subspace) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
@@ -88,13 +88,11 @@ func (s subspace) ToFDBKey() fdb.Key {
 }
 
 func (s subspace) BeginKey() fdb.Key {
-	kr := tuple.Tuple{}.Range()
-	return append(append(fdb.Key{}, s...), kr.BeginKey()...)
+	return concat(s, 0x00)
 }
 
 func (s subspace) EndKey() fdb.Key {
-	kr := tuple.Tuple{}.Range()
-	return append(append(fdb.Key{}, s...), kr.EndKey()...)
+	return concat(s, 0xFF)
 }
 
 func (s subspace) BeginKeySelector() fdb.KeySelector {
@@ -103,4 +101,11 @@ func (s subspace) BeginKeySelector() fdb.KeySelector {
 
 func (s subspace) EndKeySelector() fdb.KeySelector {
 	return fdb.FirstGreaterOrEqual(s.EndKey())
+}
+
+func concat(a []byte, b ...byte) []byte {
+	r := make([]byte, len(a) + len(b))
+	copy(r, a)
+	copy(r[len(a):], b)
+	return r
 }

@@ -227,6 +227,7 @@ func (t Tuple) Range() fdb.KeyRange {
 
 	begin := make([]byte, len(p) + 1)
 	copy(begin, p)
+	// Last element of begin is now 0x00
 
 	end := make([]byte, len(p) + 1)
 	copy(end, p)

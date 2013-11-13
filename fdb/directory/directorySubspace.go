@@ -43,7 +43,10 @@ func (d directorySubspace) partitionSubpath(path []string, dl *DirectoryLayer) [
 	if dl == nil {
 		dl = &d.dl
 	}
-	return append(append([]string{}, d.path[len(dl.path):]...), path...)
+	r := make([]string, len(d.path) - len(dl.path) + len(path))
+	copy(r, d.path[len(dl.path):])
+	copy(r[len(d.path) - len(dl.path):], path)
+	return r
 }
 
 func (d directorySubspace) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
