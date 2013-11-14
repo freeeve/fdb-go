@@ -67,6 +67,6 @@ func (n *node) getPartitionSubpath() []string {
 	return n.targetPath[len(n.path):]
 }
 
-func (n *node) getContents(dl DirectoryLayer, tr *fdb.Transaction) DirectorySubspace {
+func (n *node) getContents(dl DirectoryLayer, tr *fdb.Transaction) (DirectorySubspace, error) {
 	return dl.contentsOfNode(n.subspace, n.path, n.layer(tr).GetOrPanic())
 }

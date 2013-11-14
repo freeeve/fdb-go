@@ -27,20 +27,14 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
 )
 
-const SUBDIRS int = 0
+const (
+	_SUBDIRS int = 0
 
-// []int32{1,0,0} by any other name
-const MAJORVERSION int32 = 1
-const MINORVERSION int32 = 0
-const MICROVERSION int32 = 0
-
-type Error struct {
-	message string
-}
-
-func (e Error) Error() string {
-	return e.message
-}
+	// []int32{1,0,0} by any other name
+	_MAJORVERSION int32 = 1
+	_MINORVERSION int32 = 0
+	_MICROVERSION int32 = 0
+)
 
 type Directory interface {
 	CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error)
@@ -59,18 +53,14 @@ type Directory interface {
 
 	List(t fdb.Transactor, path []string) ([]string, error)
 
-	CheckLayer(layer []byte) error
+	GetLayer() []byte
+	GetPath() []string
 
 	getLayerForPath(path []string) DirectoryLayer
 }
 
-var root *DirectoryLayer
+var root = NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), nil)
 
 func Root() Directory {
-	if root == nil {
-		dl := NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), nil)
-		root = &dl
-	}
-
-	return *root
+	return root
 }

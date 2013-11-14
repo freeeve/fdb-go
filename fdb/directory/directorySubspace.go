@@ -24,7 +24,7 @@ package directory
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
-	"bytes"
+	"errors"
 )
 
 type DirectorySubspace interface {
@@ -108,7 +108,7 @@ func (d directorySubspace) MoveTo(t fdb.Transactor, newAbsolutePath []string) (d
 		partition_path := newAbsolutePath[:partition_len]
 
 		if !stringsEqual(partition_path, dl.path) {
-			return nil, Error{"Cannot move between partitions."}
+			return nil, errors.New("cannot move between partitions")
 		}
 
 		return dl.Move(tr, d.path[partition_len:], newAbsolutePath[partition_len:])
@@ -155,11 +155,12 @@ func (d directorySubspace) List(t fdb.Transactor, path []string) (subdirs []stri
 	return
 }
 
-func (d directorySubspace) CheckLayer(layer []byte) error {
-	if layer != nil && bytes.Compare(layer, d.layer) != 0 {
-		return Error{"The directory was created with an incompatible layer."}
-	}
-	return nil
+func (d directorySubspace) GetLayer() []byte {
+	return d.layer
+}
+
+func (d directorySubspace) GetPath() []string {
+	return d.path
 }
 
 func (d directorySubspace) getLayerForPath(path []string) DirectoryLayer {

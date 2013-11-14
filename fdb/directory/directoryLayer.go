@@ -28,6 +28,7 @@ import (
 	"encoding/binary"
 	"bytes"
 	"fmt"
+	"errors"
 )
 
 type DirectoryLayer struct {
@@ -54,67 +55,83 @@ func NewDirectoryLayer(nodeSS subspace.Subspace, contentSS subspace.Subspace, pa
 	return dl
 }
 
-func (dl DirectoryLayer) DirectoryLayer() DirectoryLayer {
-	return dl
-}
-
 func (dl DirectoryLayer) getLayerForPath(path []string) DirectoryLayer {
 	return dl
 }
 
-func (dl DirectoryLayer) createOrOpen(tr fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate bool, allowOpen bool) DirectorySubspace {
-	dl.checkVersion(tr, false)
+func (dl DirectoryLayer) createOrOpen(tr fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate bool, allowOpen bool) (DirectorySubspace, error) {
+	if e := dl.checkVersion(tr, false); e != nil {
+		return nil, e
+	}
 
 	if len(path) == 0 {
-		panic(Error{"The root directory cannot be opened."})
+		return nil, errors.New("the root directory cannot be opened")
 	}
 
 	existingNode := dl.find(tr, path).prefetchMetadata(tr)
 	if existingNode.exists() {
 		if existingNode.isInPartition(nil, false) {
 			subpath := existingNode.getPartitionSubpath()
-			return existingNode.getContents(dl, nil).getLayerForPath([]string{}).createOrOpen(tr, subpath, layer, prefix, allowCreate, allowOpen)
+			enc, e := existingNode.getContents(dl, nil)
+			if e != nil {
+				return nil, e
+			}
+			return enc.getLayerForPath([]string{}).createOrOpen(tr, subpath, layer, prefix, allowCreate, allowOpen)
 		}
 
 		if !allowOpen {
-			panic(Error{"The directory already exists."})
+			return nil, errors.New("the directory already exists")
 		}
 
 		if layer != nil && bytes.Compare(existingNode.layer(nil).GetOrPanic(), layer) != 0 {
-			panic(Error{"The directory was created with an incompatible layer."})
+			return nil, errors.New("the directory was created with an incompatible layer")
 		}
 
 		return existingNode.getContents(dl, nil)
 	}
 
 	if !allowCreate {
-		panic(Error{"The directory does not exist."})
+		return nil, errors.New("the directory does not exist")
 	}
 
-	dl.checkVersion(tr, true)
+	if e := dl.checkVersion(tr, true); e != nil {
+		return nil, e
+	}
 
 	if prefix == nil {
-		prefix = dl.allocator.allocate(tr, dl.contentSS).Bytes()
+		newss, e := dl.allocator.allocate(tr, dl.contentSS)
+		if e != nil {
+			return nil, fmt.Errorf("unable to allocate new directory prefix (%s)", e.Error())
+		}
+		prefix = newss.Bytes()
 	}
 
-	if !dl.isPrefixFree(tr, prefix) {
-		panic(Error{"The given prefix is already in use."})
+	pf, e := dl.isPrefixFree(tr, prefix)
+	if e != nil {
+		return nil, e
+	}
+	if !pf {
+		return nil, errors.New("the given prefix is already in use")
 	}
 
 	var parentNode subspace.Subspace
 
 	if len(path) > 1 {
-		parentNode = dl.nodeWithPrefix(dl.createOrOpen(tr, path[:len(path)-1], nil, nil, true, true).Bytes())
+		pd, e := dl.createOrOpen(tr, path[:len(path)-1], nil, nil, true, true)
+		if e != nil {
+			return nil, e
+		}
+		parentNode = dl.nodeWithPrefix(pd.Bytes())
 	} else {
 		parentNode = dl.rootNode
 	}
 
 	if parentNode == nil {
-		panic(Error{"The parent directory doesn't exist."})
+		return nil, errors.New("the parent directory does not exist")
 	}
 
 	node := dl.nodeWithPrefix(prefix)
-	tr.Set(parentNode.Sub(SUBDIRS, path[len(path)-1]), prefix)
+	tr.Set(parentNode.Sub(_SUBDIRS, path[len(path)-1]), prefix)
 
 	if layer == nil {
 		layer = []byte{}
@@ -125,67 +142,51 @@ func (dl DirectoryLayer) createOrOpen(tr fdb.Transaction, path []string, layer [
 	return dl.contentsOfNode(node, path, layer)
 }
 
-func (dl DirectoryLayer) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return dl.createOrOpen(tr, path, layer, nil, true, true), nil
+		return dl.createOrOpen(tr, path, layer, nil, true, true)
 	})
-	return r.(DirectorySubspace), e
+	if e != nil {
+		return nil, e
+	}
+	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return dl.createOrOpen(tr, path, layer, nil, true, false), nil
+		return dl.createOrOpen(tr, path, layer, nil, true, false)
 	})
-	return r.(DirectorySubspace), e
+	if e != nil {
+		return nil, e
+	}
+	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (ds DirectorySubspace, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return dl.createOrOpen(tr, path, layer, prefix, true, false), nil
+		return dl.createOrOpen(tr, path, layer, prefix, true, false)
 	})
-	return r.(DirectorySubspace), e
+	if e != nil {
+		return nil, e
+	}
+	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Open(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) Open(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return dl.createOrOpen(tr, path, layer, nil, false, true), nil
+		return dl.createOrOpen(tr, path, layer, nil, false, true)
 	})
-	return r.(DirectorySubspace), e
+	if e != nil {
+		return nil, e
+	}
+	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Exists(t fdb.Transactor, path []string) (b bool, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) Exists(t fdb.Transactor, path []string) (bool, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl.checkVersion(tr, false)
+		if e := dl.checkVersion(tr, false); e != nil {
+			return false, e
+		}
 
 		node := dl.find(tr, path).prefetchMetadata(tr)
 		if !node.exists() {
@@ -193,7 +194,11 @@ func (dl DirectoryLayer) Exists(t fdb.Transactor, path []string) (b bool, e erro
 		}
 
 		if node.isInPartition(nil, false) {
-			return node.getContents(dl, nil).Exists(tr, node.getPartitionSubpath())
+			nc, e := node.getContents(dl, nil)
+			if e != nil {
+				return false, e
+			}
+			return nc.Exists(tr, node.getPartitionSubpath())
 		}
 
 		return true, nil
@@ -201,105 +206,101 @@ func (dl DirectoryLayer) Exists(t fdb.Transactor, path []string) (b bool, e erro
 	return r.(bool), e
 }
 
-func (dl DirectoryLayer) List(t fdb.Transactor, path []string) (subdirs []string, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) List(t fdb.Transactor, path []string) ([]string, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl.checkVersion(tr, false)
+		if e := dl.checkVersion(tr, false); e != nil {
+			return nil, e
+		}
 
 		node := dl.find(tr, path).prefetchMetadata(tr)
 		if !node.exists() {
-			return nil, Error{"The directory does not exist."}
+			return nil, errors.New("the directory does not exist")
 		}
 
 		if node.isInPartition(nil, true) {
-			return node.getContents(dl, nil).List(tr, node.getPartitionSubpath())
+			nc, e := node.getContents(dl, nil)
+			if e != nil {
+				return nil, e
+			}
+			return nc.List(tr, node.getPartitionSubpath())
 		}
 
-		return dl.subdirNames(tr, node.subspace), nil
+		return dl.subdirNames(tr, node.subspace)
 	})
-	if e == nil {
-		subdirs = r.([]string)
-	}
-	return
+	return r.([]string), e
 }
 
-func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (ds DirectorySubspace, e error) {
-	return nil, Error{"The root directory cannot be moved."}
+func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
+	return nil, errors.New("the root directory cannot be moved")
 }
 
-func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []string) (ds DirectorySubspace, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl.checkVersion(tr, false)
+		if e := dl.checkVersion(tr, false); e != nil {
+			return nil, e
+		}
 
 		sliceEnd := len(oldPath)
 		if sliceEnd > len(newPath) {
 			sliceEnd = len(newPath)
 		}
 		if stringsEqual(oldPath, newPath[:sliceEnd]) {
-			return nil, Error{"The destination directory cannot be a subdirectory of the source directory."}
+			return nil, errors.New("the destination directory cannot be a subdirectory of the source directory")
 		}
 
 		oldNode := dl.find(tr, oldPath).prefetchMetadata(tr)
 		newNode := dl.find(tr, newPath).prefetchMetadata(tr)
 
 		if !oldNode.exists() {
-			return nil, Error{"The source directory does not exist."}
+			return nil, errors.New("the source directory does not exist")
 		}
 
 		if oldNode.isInPartition(nil, false) || newNode.isInPartition(nil, false) {
 			if !oldNode.isInPartition(nil, false) || !newNode.isInPartition(nil, false) || !stringsEqual(oldNode.path, newNode.path) {
-				return nil, Error{"Cannot move between partitions."}
+				return nil, errors.New("cannot move between partitions")
 			}
 
-			return newNode.getContents(dl, nil).Move(tr, oldNode.getPartitionSubpath(), newNode.getPartitionSubpath())
+			nnc, e := newNode.getContents(dl, nil)
+			if e != nil {
+				return nil, e
+			}
+			return nnc.Move(tr, oldNode.getPartitionSubpath(), newNode.getPartitionSubpath())
 		}
 
 		if newNode.exists() {
-			return nil, Error{"The destination directory already exists. Remove it first."}
+			return nil, errors.New("the destination directory already exists. Remove it first")
 		}
 
 		parentNode := dl.find(tr, newPath[:len(newPath)-1])
 		if !parentNode.exists() {
-			return nil, Error{"The parent of the destination directory does not exist. Create it first."}
+			return nil, errors.New("the parent of the destination directory does not exist. Create it first")
 		}
 
 		p, e := dl.nodeSS.Unpack(oldNode.subspace)
-		if e != nil { panic(e) }
-		tr.Set(parentNode.subspace.Sub(SUBDIRS, newPath[len(newPath)-1]), p[0].([]byte))
+		if e != nil {
+			return nil, e
+		}
+		tr.Set(parentNode.subspace.Sub(_SUBDIRS, newPath[len(newPath)-1]), p[0].([]byte))
 
 		dl.removeFromParent(tr, oldPath)
 
-		return dl.contentsOfNode(oldNode.subspace, newPath, oldNode.layer(nil).GetOrPanic()), nil
+		return dl.contentsOfNode(oldNode.subspace, newPath, oldNode.layer(nil).GetOrPanic())
 	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
+
+	if e != nil {
+		return nil, e
 	}
-	return
+	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (removed bool, e error) {
-	defer func() {
-		if r := recover(); r != nil {
-			r, ok := r.(Error)
-			if ok {	e = r } else { panic(r) }
-		}
-	}()
+func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl.checkVersion(tr, false)
+		if e := dl.checkVersion(tr, false); e != nil {
+			return false, e
+		}
 
 		if len(path) == 0 {
-			return false, Error{"The root directory cannot be removed."}
+			return false, errors.New("the root directory cannot be removed")
 		}
 
 		node := dl.find(tr, path).prefetchMetadata(tr)
@@ -309,10 +310,16 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (removed bool, 
 		}
 
 		if node.isInPartition(nil, true) {
-			return node.getContents(dl, nil).getLayerForPath([]string{}).Remove(tr, node.getPartitionSubpath())
+			nc, e := node.getContents(dl, nil)
+			if e != nil {
+				return false, e
+			}
+			return nc.getLayerForPath([]string{}).Remove(tr, node.getPartitionSubpath())
 		}
 
-		dl.removeRecursive(tr, node.subspace)
+		if e := dl.removeRecursive(tr, node.subspace); e != nil {
+			return false, e
+		}
 		dl.removeFromParent(tr, path)
 
 		return true, nil
@@ -320,35 +327,40 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (removed bool, 
 	return r.(bool), e
 }
 
-func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) {
+func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) error {
 	nodes := dl.subdirNodes(tr, node)
 	for i := 0; i < len(nodes); i++ {
-		dl.removeRecursive(tr, nodes[i])
+		if e := dl.removeRecursive(tr, nodes[i]); e != nil {
+			return e
+		}
 	}
 
 	p, e := dl.nodeSS.Unpack(node)
-	if e != nil { panic(e) }
+	if e != nil { return e }
 	kr, e := fdb.PrefixRange(p[0].([]byte))
-	if e != nil { panic(e) }
+	if e != nil { return e }
 
 	tr.ClearRange(kr)
 	tr.ClearRange(node)
+
+	return nil
 }
 
 func (dl DirectoryLayer) removeFromParent(tr fdb.Transaction, path []string) {
 	parent := dl.find(tr, path[:len(path)-1])
-	tr.Clear(parent.subspace.Sub(SUBDIRS, path[len(path)-1]))
+	tr.Clear(parent.subspace.Sub(_SUBDIRS, path[len(path)-1]))
 }
 
-func (dl DirectoryLayer) CheckLayer(layer []byte) error {
-	if layer != nil && len(layer) > 0 {
-		return Error{"The directory was created with an incompatible layer."}
-	}
-	return nil
+func (dl DirectoryLayer) GetLayer() []byte {
+	return []byte{}
 }
 
-func (dl DirectoryLayer) subdirNames(tr fdb.Transaction, node subspace.Subspace) []string {
-	sd := node.Sub(SUBDIRS)
+func (dl DirectoryLayer) GetPath() []string {
+	return dl.path
+}
+
+func (dl DirectoryLayer) subdirNames(tr fdb.Transaction, node subspace.Subspace) ([]string, error) {
+	sd := node.Sub(_SUBDIRS)
 
 	rr := tr.GetRange(sd, fdb.RangeOptions{})
 	ri := rr.Iterator()
@@ -359,16 +371,18 @@ func (dl DirectoryLayer) subdirNames(tr fdb.Transaction, node subspace.Subspace)
 		kv := ri.GetNextOrPanic()
 
 		p, e := sd.Unpack(kv.Key)
-		if e != nil { panic(e) }
+		if e != nil {
+			return nil, e
+		}
 
 		ret = append(ret, p[0].(string))
 	}
 
-	return ret
+	return ret, nil
 }
 
 func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace) []subspace.Subspace {
-	sd := node.Sub(SUBDIRS)
+	sd := node.Sub(_SUBDIRS)
 
 	rr := tr.GetRange(sd, fdb.RangeOptions{})
 	ri := rr.Iterator()
@@ -384,9 +398,9 @@ func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 	return ret
 }
 
-func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) subspace.Subspace {
+func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) (subspace.Subspace, error) {
 	if bytes.HasPrefix(key, dl.nodeSS.Bytes()) {
-		return dl.rootNode
+		return dl.rootNode, nil
 	}
 
 	kr := fdb.KeyRange{dl.nodeSS.BeginKey(), fdb.Key(append(dl.nodeSS.Pack(tuple.Tuple{key}), 0x00))}
@@ -394,42 +408,52 @@ func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) subsp
 	kvs := tr.GetRange(kr, fdb.RangeOptions{Reverse:true, Limit:1}).GetSliceOrPanic()
 	if len(kvs) == 1 {
 		pp, e := dl.nodeSS.Unpack(kvs[0].Key)
-		if e != nil { panic(e) }
+		if e != nil {
+			return nil, e
+		}
 		prevPrefix := pp[0].([]byte)
 		if bytes.HasPrefix(key, prevPrefix) {
-			return subspace.FromBytes(kvs[0].Key)
+			return subspace.FromBytes(kvs[0].Key), nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (dl DirectoryLayer) isPrefixFree(tr fdb.Transaction, prefix []byte) bool {
-	if prefix == nil { return false }
+func (dl DirectoryLayer) isPrefixFree(tr fdb.Transaction, prefix []byte) (bool, error) {
+	if prefix == nil {
+		return false, nil
+	}
 
-	if dl.nodeContainingKey(tr, prefix) != nil {
-		return false
+	nck, e := dl.nodeContainingKey(tr, prefix)
+	if e != nil {
+		return false, e
+	}
+	if nck != nil {
+		return false, nil
 	}
 
 	kr, e := fdb.PrefixRange(prefix)
-	if e != nil { panic(e) }
+	if e != nil {
+		return false, e
+	}
 
 	kvs := tr.GetRange(fdb.KeyRange{fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.BeginKey()})), fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.EndKey()}))}, fdb.RangeOptions{Limit:1}).GetSliceOrPanic()
 	if len(kvs) > 0 {
-		return false
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }
 
-func (dl DirectoryLayer) checkVersion(tr fdb.Transaction, writeAccess bool) {
+func (dl DirectoryLayer) checkVersion(tr fdb.Transaction, writeAccess bool) error {
 	version := tr.Get(dl.rootNode.Sub([]byte("version"))).GetOrPanic()
 
 	if version == nil {
 		if writeAccess {
 			dl.initializeDirectory(tr)
 		}
-		return
+		return nil
 	}
 
 	var versions []int32
@@ -439,34 +463,38 @@ func (dl DirectoryLayer) checkVersion(tr fdb.Transaction, writeAccess bool) {
 		var v int32
 		err := binary.Read(buf, binary.LittleEndian, &v)
 		if err != nil {
-			panic(Error{"Cannot determine directory version present in database."})
+			return errors.New("cannot determine directory version present in database")
 		}
 		versions = append(versions, v)
 	}
 
-	if versions[0] > MAJORVERSION {
-		panic(Error{fmt.Sprintf("Cannot load directory with version %d.%d.%d using directory layer %d.%d.%d", versions[0], versions[1], versions[2], MAJORVERSION, MINORVERSION, MICROVERSION)})
+	if versions[0] > _MAJORVERSION {
+		return fmt.Errorf("cannot load directory with version %d.%d.%d using directory layer %d.%d.%d", versions[0], versions[1], versions[2], _MAJORVERSION, _MINORVERSION, _MICROVERSION)
 	}
 
-	if versions[1] > MINORVERSION && writeAccess {
-		panic(Error{fmt.Sprintf("Directory with version %d.%d.%d is read-only when opened using directory layer %d.%d.%d", versions[0], versions[1], versions[2], MAJORVERSION, MINORVERSION, MICROVERSION)})
+	if versions[1] > _MINORVERSION && writeAccess {
+		return fmt.Errorf("directory with version %d.%d.%d is read-only when opened using directory layer %d.%d.%d", versions[0], versions[1], versions[2], _MAJORVERSION, _MINORVERSION, _MICROVERSION)
 	}
+
+	return nil
 }
 
 func (dl DirectoryLayer) initializeDirectory(tr fdb.Transaction) {
 	buf := new(bytes.Buffer)
 
 	// FIXME: is ignoring errors OK here? What could really go wrong?
-	binary.Write(buf, binary.LittleEndian, MAJORVERSION)
-	binary.Write(buf, binary.LittleEndian, MINORVERSION)
-	binary.Write(buf, binary.LittleEndian, MICROVERSION)
+	binary.Write(buf, binary.LittleEndian, _MAJORVERSION)
+	binary.Write(buf, binary.LittleEndian, _MINORVERSION)
+	binary.Write(buf, binary.LittleEndian, _MICROVERSION)
 
 	tr.Set(dl.rootNode.Sub([]byte("version")), buf.Bytes())
 }
 
-func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, layer []byte) DirectorySubspace {
-	p, err := dl.nodeSS.Unpack(node)
-	if err != nil { panic(err) }
+func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, layer []byte) (DirectorySubspace, error) {
+	p, e := dl.nodeSS.Unpack(node)
+	if e != nil {
+		return nil, e
+	}
 	prefix := p[0]
 
 	newPath := make([]string, len(dl.path) + len(path))
@@ -480,9 +508,9 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 		nssb := make([]byte, len(ssb) + 1)
 		copy(nssb, ssb)
 		nssb[len(ssb)] = 0xFE
-		return DirectoryPartition{ss, NewDirectoryLayer(subspace.FromBytes(nssb), ss, newPath), dl}
+		return DirectoryPartition{NewDirectoryLayer(subspace.FromBytes(nssb), ss, newPath), dl}, nil
 	} else {
-		return directorySubspace{ss, dl, newPath, layer}
+		return directorySubspace{ss, dl, newPath, layer}, nil
 	}
 }
 
@@ -494,7 +522,7 @@ func (dl DirectoryLayer) nodeWithPrefix(prefix []byte) subspace.Subspace {
 func (dl DirectoryLayer) find(tr fdb.Transaction, path []string) *node {
 	n := &node{dl.rootNode, []string{}, path, nil}
 	for i := 0; i < len(path); i++ {
-		n = &node{dl.nodeWithPrefix(tr.Get(n.subspace.Sub(SUBDIRS, path[i])).GetOrPanic()), path[:i+1], path, nil}
+		n = &node{dl.nodeWithPrefix(tr.Get(n.subspace.Sub(_SUBDIRS, path[i])).GetOrPanic()), path[:i+1], path, nil}
 		if !n.exists() || bytes.Compare(n.layer(&tr).GetOrPanic(), []byte("partition")) == 0 {
 			return n
 		}

@@ -55,53 +55,48 @@ func windowSize(start int64) int64 {
 	return 8192
 }
 
-func (hca highContentionAllocator) allocate(t fdb.Transactor, s subspace.Subspace) subspace.Subspace {
-	ret, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		rr := tr.Snapshot().GetRange(hca.counters, fdb.RangeOptions{Limit:1, Reverse:true})
-		kvs := rr.GetSliceOrPanic()
+func (hca highContentionAllocator) allocate(tr fdb.Transaction, s subspace.Subspace) (subspace.Subspace, error) {
+	rr := tr.Snapshot().GetRange(hca.counters, fdb.RangeOptions{Limit:1, Reverse:true})
+	kvs := rr.GetSliceOrPanic()
 
-		var start, count int64
+	var start, count int64
 
-		if len(kvs) == 1 {
-			t, e := hca.counters.Unpack(kvs[0].Key)
-			if e != nil {
-				return nil, e
-			}
-			start = t[0].(int64)
-
-			e = binary.Read(bytes.NewBuffer(kvs[0].Value), binary.LittleEndian, &count)
-			if e != nil {
-				return nil, e
-			}
+	if len(kvs) == 1 {
+		t, e := hca.counters.Unpack(kvs[0].Key)
+		if e != nil {
+			return nil, e
 		}
+		start = t[0].(int64)
 
-		window := windowSize(start)
-
-		if (count + 1) * 2 >= window {
-			// Advance the window
-			tr.ClearRange(fdb.KeyRange{hca.counters, append(hca.counters.Sub(start).ToFDBKey(), 0x00)})
-			start += window
-			tr.ClearRange(fdb.KeyRange{hca.recent, hca.recent.Sub(start)})
-			window = windowSize(start)
+		e = binary.Read(bytes.NewBuffer(kvs[0].Value), binary.LittleEndian, &count)
+		if e != nil {
+			return nil, e
 		}
+	}
 
-        // Increment the allocation count for the current window
-		tr.Add(hca.counters.Sub(start), oneBytes)
+	window := windowSize(start)
 
-		for {
-            // As of the snapshot being read from, the window is less than half
-            // full, so this should be expected to take 2 tries.  Under high
-            // contention (and when the window advances), there is an additional
-            // subsequent risk of conflict for this transaction.
-			candidate := rand.Int63n(window) + start
-			key := hca.recent.Sub(candidate)
-			if tr.Get(key).GetOrPanic() == nil {
-				tr.Set(key, []byte(""))
-				return s.Sub(candidate), nil
-			}
+	if (count + 1) * 2 >= window {
+		// Advance the window
+		tr.ClearRange(fdb.KeyRange{hca.counters, append(hca.counters.Sub(start).ToFDBKey(), 0x00)})
+		start += window
+		tr.ClearRange(fdb.KeyRange{hca.recent, hca.recent.Sub(start)})
+		window = windowSize(start)
+	}
+
+	// Increment the allocation count for the current window
+	tr.Add(hca.counters.Sub(start), oneBytes)
+
+	for {
+		// As of the snapshot being read from, the window is less than half
+		// full, so this should be expected to take 2 tries.  Under high
+		// contention (and when the window advances), there is an additional
+		// subsequent risk of conflict for this transaction.
+		candidate := rand.Int63n(window) + start
+		key := hca.recent.Sub(candidate)
+		if tr.Get(key).GetOrPanic() == nil {
+			tr.Set(key, []byte(""))
+			return s.Sub(candidate), nil
 		}
-	})
-	if e != nil { panic(e) }
-
-	return ret.(subspace.Subspace)
+	}
 }
