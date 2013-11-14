@@ -143,7 +143,7 @@ func (f FutureValue) GetWithError() ([]byte, error) {
 		if err == 2017 {
 			return f.v, nil
 		} else {
-			return nil, FDBError{int(err)}
+			return nil, Error{int(err)}
 		}
 	}
 
@@ -227,7 +227,7 @@ func (f FutureKey) GetWithError() (Key, error) {
 		if err == 2017 {
 			return f.k, nil
 		} else {
-			return nil, FDBError{int(err)}
+			return nil, Error{int(err)}
 		}
 	}
 
@@ -262,7 +262,7 @@ type FutureNil struct {
 func (f FutureNil) GetWithError() error {
 	fdb_future_block_until_ready(f.ptr)
 	if err := C.fdb_future_get_error(f.ptr); err != 0 {
-		return FDBError{int(err)}
+		return Error{int(err)}
 	}
 
 	return nil
@@ -301,7 +301,7 @@ func (f *futureKeyValueArray) GetWithError() ([]KeyValue, bool, error) {
 	var more C.fdb_bool_t
 
 	if err := C.fdb_future_get_keyvalue_array(f.ptr, (**C.FDBKeyValue)(unsafe.Pointer(&kvs)), &count, &more); err != 0 {
-		return nil, false, FDBError{int(err)}
+		return nil, false, Error{int(err)}
 	}
 
 	ret := make([]KeyValue, int(count))
@@ -332,7 +332,7 @@ func (f FutureVersion) GetWithError() (int64, error) {
 
 	var ver C.int64_t
 	if err := C.fdb_future_get_version(f.ptr, &ver); err != 0 {
-		return 0, FDBError{int(err)}
+		return 0, Error{int(err)}
 	}
 	return int64(ver), nil
 }
@@ -359,7 +359,7 @@ func (f FutureStringArray) GetWithError() ([]string, error) {
 	var count C.int
 
 	if err := C.fdb_future_get_string_array(f.ptr, (***C.char)(unsafe.Pointer(&strings)), &count); err != 0 {
-		return nil, FDBError{int(err)}
+		return nil, Error{int(err)}
 	}
 
 	ret := make([]string, int(count))

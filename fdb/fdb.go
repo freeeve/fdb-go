@@ -51,7 +51,7 @@ type Transactor interface {
 
 func setOpt(setter func(*C.uint8_t, C.int) C.fdb_error_t, param []byte) error {
 	if err := setter(byteSliceToPtr(param), C.int(len(param))); err != 0 {
-		return FDBError{int(err)}
+		return Error{int(err)}
 	}
 
 	return nil
@@ -101,7 +101,7 @@ func APIVersion(version int) error {
 	}
 
 	if e := C.fdb_select_api_version_impl(C.int(version), 101); e != 0 {
-		return FDBError{int(e)}
+		return Error{int(e)}
 	}
 
 	apiVersion = version
@@ -123,7 +123,7 @@ func init() {
 
 func startNetwork() error {
 	if e := C.fdb_setup_network(); e != 0 {
-		return FDBError{int(e)}
+		return Error{int(e)}
 	}
 
 	go C.fdb_run_network()
@@ -219,7 +219,7 @@ func createCluster(clusterFile string) (Cluster, error) {
 	var outc *C.FDBCluster
 
 	if err := C.fdb_future_get_cluster(f, &outc); err != 0 {
-		return Cluster{}, FDBError{int(err)}
+		return Cluster{}, Error{int(err)}
 	}
 
 	C.fdb_future_destroy(f)

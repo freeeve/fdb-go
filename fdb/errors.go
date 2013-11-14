@@ -31,28 +31,28 @@ import (
 	"fmt"
 )
 
-// FDBError represents a low-level error returned by the FoundationDB C
-// library. An FDBError may be returned by any FoundationDB API function that
-// returns error, or as a panic from any FoundationDB API function whose name
-// ends with OrPanic.
+// Error represents a low-level error returned by the FoundationDB C library. An
+// Error may be returned by any FoundationDB API function that returns error, or
+// as a panic from any FoundationDB API function whose name ends with OrPanic.
 //
-// You may compare the Code field of an FDBError against the list of
-// FoundationDB error codes at
-// https://foundationdb.com/documentation/api-error-codes.html, but generally an
-// FDBError should be passed to (Transaction).OnError. When using
+// You may compare the Code field of an Error against the list of FoundationDB
+// error codes at https://foundationdb.com/documentation/api-error-codes.html,
+// but generally an Error should be passed to (Transaction).OnError. When using
 // (Database).Transact, non-fatal errors will be retried automatically.
-type FDBError struct {
+type Error struct {
 	Code int
 }
 
-func (e FDBError) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("FoundationDB error code %d (%s)", e.Code, C.GoString(C.fdb_get_error(C.fdb_error_t(e.Code))))
 }
 
 // SOMEDAY: these (along with others) should be coming from fdb.options?
 
-var errNetworkNotSetup = FDBError{2008}
+var (
+	errNetworkNotSetup = Error{2008}
 
-var errAPIVersionUnset = FDBError{2200}
-var errAPIVersionAlreadySet = FDBError{2201}
-var errAPIVersionNotSupported = FDBError{2203}
+	errAPIVersionUnset = Error{2200}
+	errAPIVersionAlreadySet = Error{2201}
+	errAPIVersionNotSupported = Error{2203}
+)

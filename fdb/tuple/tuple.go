@@ -25,7 +25,7 @@
 // second element, etc. This makes the tuple layer ideal for building a variety
 // of higher-level data models.
 //
-// FoundationDB tuple's can currently encode byte and unicode strings, integers
+// FoundationDB tuples can currently encode byte and unicode strings, integers
 // and NULL values. In Go these are represented as []byte, string, int64 (or
 // int) and nil.
 package tuple
@@ -38,8 +38,8 @@ import (
 )
 
 // Tuple is a slice of objects that can be encoded as FoundationDB tuples. If a
-// tuple contains elements of types other than []byte, string, int64, int or
-// nil, an error will be returned when the Tuple is packed.
+// tuple contains elements of types other than []byte (or fdb.KeyConvertible),
+// string, int64 (or int) or nil, an panic will occur when the Tuple is packed.
 //
 // Given a Tuple T containing objects only of these types, then T will be
 // identical to the Tuple returned by unpacking the byte slice obtained by
@@ -95,15 +95,6 @@ func encodeInt(buf *bytes.Buffer, i int64) {
 	buf.Write(ibuf.Bytes()[8-n:])
 }
 
-type ElementError struct {
-	Tuple Tuple
-	Index int
-}
-
-func (e *ElementError) Error() string {
-	return fmt.Sprintf("Unencodable element at index %d (%v, type %T)", e.Index, e.Tuple[e.Index], e.Tuple[e.Index])
-}
-
 // Pack returns a byte slice encoding the provided tuple. Pack will panic if the
 // tuple contains an element of any type other than []byte, string, int64, int
 // or nil.
@@ -125,7 +116,7 @@ func (t Tuple) Pack() []byte {
 		case string:
 			encodeBytes(buf, 0x02, []byte(e))
 		default:
-			panic(&ElementError{t, i})
+			panic(fmt.Sprintf("unencodable element at index %d (%v, type %T)", i, t[i], t[i]))
 		}
 	}
 
@@ -208,7 +199,7 @@ func Unpack(b []byte) (Tuple, error) {
 		case 0x0c <= b[i] && b[i] <= 0x1c:
 			el, off = decodeInt(b[i:])
 		default:
-			return nil, fmt.Errorf("Can't decode tuple typecode %02x", b[i])
+			return nil, fmt.Errorf("unable to decode tuple element with unknown typecode %02x", b[i])
 		}
 
 		t = append(t, el)
