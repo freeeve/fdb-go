@@ -28,7 +28,6 @@ package fdb
 import "C"
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -42,21 +41,6 @@ func notifyChannel(ch *chan struct{}) {
 	*ch <- struct{}{}
 }
 
-// Error represents a low-level error returned by the FoundationDB C library. An
-// Error may be returned by any FoundationDB API function that returns error, or
-// as a panic from any FoundationDB API function whose name ends with OrPanic.
-//
-// An Error may be cast to an int for comparison against the list of
-// FoundationDB error codes at
-// https://foundationdb.com/documentation/api-error-codes.html, but generally
-// should be passed to (Transaction).OnError. When using (Database).Transact,
-// non-fatal errors will be retried automatically.
-type Error C.fdb_error_t
-
-func (e Error) Error() string {
-	return fmt.Sprintf("FDB Error: %s (%d)", C.GoString(C.fdb_get_error(C.fdb_error_t(e))), e)
-}
-
 // A Transactor represents an object that can execute a transactional
 // function. Functions that accept a Transactor can be called with either a
 // Database or a Transaction, allowing them to be composed transactionally.
@@ -66,7 +50,7 @@ type Transactor interface {
 
 func setOpt(setter func(*C.uint8_t, C.int) C.fdb_error_t, param []byte) error {
 	if err := setter(byteSliceToPtr(param), C.int(len(param))); err != 0 {
-		return Error(err)
+		return FDBError{int(err)}
 	}
 
 	return nil
@@ -89,7 +73,7 @@ func (opt NetworkOptions) setOpt(code int, param []byte) error {
 	defer networkMutex.Unlock()
 
 	if apiVersion == 0 {
-		return errorApiVersionUnset
+		return errAPIVersionUnset
 	}
 
 	return setOpt(func(p *C.uint8_t, pl C.int) C.fdb_error_t {
@@ -108,15 +92,15 @@ func APIVersion(version int) error {
 	defer networkMutex.Unlock()
 
 	if apiVersion != 0 {
-		return errorApiVersionAlreadySet
+		return errAPIVersionAlreadySet
 	}
 
 	if version < 100 || version > 101 {
-		return errorApiVersionNotSupported
+		return errAPIVersionNotSupported
 	}
 
 	if e := C.fdb_select_api_version_impl(C.int(version), 101); e != 0 {
-		return Error(e)
+		return FDBError{int(e)}
 	}
 
 	apiVersion = version
@@ -138,7 +122,7 @@ func init() {
 
 func startNetwork() error {
 	if e := C.fdb_setup_network(); e != 0 {
-		return Error(e)
+		return FDBError{int(e)}
 	}
 
 	go C.fdb_run_network()
@@ -157,7 +141,7 @@ func StartNetwork() error {
 	defer networkMutex.Unlock()
 
 	if apiVersion == 0 {
-		return errorApiVersionUnset
+		return errAPIVersionUnset
 	}
 
 	return startNetwork()
@@ -187,7 +171,7 @@ func Open(clusterFile string, dbName []byte) (Database, error) {
 	defer networkMutex.Unlock()
 
 	if apiVersion == 0 {
-		return Database{}, errorApiVersionUnset
+		return Database{}, errAPIVersionUnset
 	}
 
 	var e error
@@ -233,7 +217,7 @@ func createCluster(clusterFile string) (Cluster, error) {
 	var outc *C.FDBCluster
 
 	if err := C.fdb_future_get_cluster(f, &outc); err != 0 {
-		return Cluster{}, Error(err)
+		return Cluster{}, FDBError{int(err)}
 	}
 
 	C.fdb_future_destroy(f)
@@ -251,11 +235,11 @@ func CreateCluster(clusterFile string) (Cluster, error) {
 	defer networkMutex.Unlock()
 
 	if apiVersion == 0 {
-		return Cluster{}, errorApiVersionUnset
+		return Cluster{}, errAPIVersionUnset
 	}
 
 	if !networkStarted {
-		return Cluster{}, errorNetworkNotSetup
+		return Cluster{}, errNetworkNotSetup
 	}
 
 	return createCluster(clusterFile)

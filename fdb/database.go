@@ -72,7 +72,7 @@ func (d Database) CreateTransaction() (Transaction, error) {
 	var outt *C.FDBTransaction
 
 	if err := C.fdb_database_create_transaction(d.ptr, &outt); err != 0 {
-		return Transaction{}, Error(err)
+		return Transaction{}, FDBError{int(err)}
 	}
 
 	t := &transaction{outt, d}
@@ -105,7 +105,7 @@ func (d Database) Transact(f func(tr Transaction) (interface{}, error)) (ret int
 		defer func() {
 			if r := recover(); r != nil {
 				switch r := r.(type) {
-				case Error:
+				case FDBError:
 					e = r
 				default:
 					panic(r)
@@ -131,7 +131,7 @@ func (d Database) Transact(f func(tr Transaction) (interface{}, error)) (ret int
 		}
 
 		switch ep := e.(type) {
-		case Error:
+		case FDBError:
 			e = tr.OnError(ep).GetWithError()
 		}
 

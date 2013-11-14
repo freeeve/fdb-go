@@ -26,7 +26,7 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/tuple"
 	"bytes"
-	"fmt"
+	"errors"
 )
 
 type Subspace interface {
@@ -76,7 +76,7 @@ func (s subspace) Pack(t tuple.Tuple) fdb.Key {
 func (s subspace) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
 	key := k.ToFDBKey()
 	if !bytes.HasPrefix(key, s.b) {
-		return nil, fmt.Errorf("Key is not in subspace")
+		return nil, errors.New("key is not in subspace")
 	}
 	return tuple.Unpack(key[len(s.b):])
 }

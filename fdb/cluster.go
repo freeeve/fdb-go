@@ -61,7 +61,7 @@ func (c Cluster) OpenDatabase(dbName []byte) (Database, error) {
 	var outd *C.FDBDatabase
 
 	if err := C.fdb_future_get_database(f, &outd); err != 0 {
-		return Database{}, Error(err)
+		return Database{}, FDBError{int(err)}
 	}
 
 	C.fdb_future_destroy(f)

@@ -158,8 +158,8 @@ func makeFutureNil(fp *C.FDBFuture) FutureNil {
 //
 // Typical code will not use OnError directly. (Database).Transact() uses
 // OnError internally to implement a correct retry loop.
-func (t Transaction) OnError(e Error) FutureNil {
-	return makeFutureNil(C.fdb_transaction_on_error(t.ptr, C.fdb_error_t(e)))
+func (t Transaction) OnError(e FDBError) FutureNil {
+	return makeFutureNil(C.fdb_transaction_on_error(t.ptr, C.fdb_error_t(e.Code)))
 }
 
 // Commit attempts to commit the modifications made in the transaction to the
@@ -296,7 +296,7 @@ func (t Transaction) GetCommittedVersion() (int64, error) {
 	var version C.int64_t
 
 	if err := C.fdb_transaction_get_committed_version(t.ptr, &version); err != 0 {
-		return 0, Error(err)
+		return 0, FDBError{int(err)}
 	}
 
 	return int64(version), nil
@@ -339,7 +339,7 @@ func addConflictRange(t *transaction, er ExactRange, crtype conflictRangeType) e
 	begin := er.BeginKey().ToFDBKey()
 	end := er.EndKey().ToFDBKey()
 	if err := C.fdb_transaction_add_conflict_range(t.ptr, byteSliceToPtr(begin), C.int(len(begin)), byteSliceToPtr(end), C.int(len(end)), C.FDBConflictRangeType(crtype)); err != 0 {
-		return Error(err)
+		return FDBError{int(err)}
 	}
 
 	return nil
