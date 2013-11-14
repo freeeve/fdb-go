@@ -29,14 +29,20 @@ import (
 	"errors"
 )
 
+// FIXME: document
 type Subspace interface {
+	// FIXME: document
 	Sub(el ...interface{}) Subspace
 
+	// FIXME: document
 	Bytes() []byte
 
+	// FIXME: document
 	Pack(t tuple.Tuple) fdb.Key
+	// FIXME: document
 	Unpack(k fdb.KeyConvertible) (tuple.Tuple, error)
 
+	// FIXME: document
 	Contains(k fdb.KeyConvertible) bool
 
 	fdb.KeyConvertible
@@ -47,14 +53,17 @@ type subspace struct {
 	b []byte
 }
 
+// FIXME: document
 func AllKeys() Subspace {
 	return subspace{}
 }
 
+// FIXME: document
 func FromTuple(t tuple.Tuple) Subspace {
 	return subspace{t.Pack()}
 }
 
+// FIXME: document
 func FromBytes(b []byte) Subspace {
 	s := make([]byte, len(b))
 	copy(s, b)
