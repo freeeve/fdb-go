@@ -24,6 +24,7 @@ package fdb
 /*
  #define FDB_API_VERSION 100
  #include <foundationdb/fdb_c.h>
+ #include <stdlib.h>
 */
 import "C"
 
@@ -209,6 +210,7 @@ func createCluster(clusterFile string) (Cluster, error) {
 
 	if len(clusterFile) != 0 {
 		cf = C.CString(clusterFile)
+		defer C.free(unsafe.Pointer(cf))
 	}
 
 	f := C.fdb_create_cluster(cf)
