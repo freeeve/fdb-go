@@ -83,3 +83,17 @@ func (dp DirectoryPartition) getLayerForPath(path []string) DirectoryLayer {
 		return dp.DirectoryLayer
 	}
 }
+
+func (dp DirectoryPartition) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
+	return moveTo(t, dp.parentDirectoryLayer, dp.path, newAbsolutePath)
+}
+
+func (dp DirectoryPartition) Remove(t fdb.Transactor, path []string) (bool, error) {
+	dl := dp.getLayerForPath(path)
+	return dl.Remove(t, dl.partitionSubpath(dp.path, path))
+}
+
+func (dp DirectoryPartition) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
+	dl := dp.getLayerForPath(path)
+	return dl.Exists(rt, dl.partitionSubpath(dp.path, path))
+}

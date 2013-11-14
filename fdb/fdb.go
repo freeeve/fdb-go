@@ -47,6 +47,12 @@ func notifyChannel(ch *chan struct{}) {
 // Database or a Transaction, allowing them to be composed transactionally.
 type Transactor interface {
 	Transact(func (tr Transaction) (interface{}, error)) (interface{}, error)
+	ReadTransact(func (sn Snapshot) (interface{}, error)) (interface{}, error)
+}
+
+// FIXME: document
+type ReadTransactor interface {
+	ReadTransact(func (sn Snapshot) (interface{}, error)) (interface{}, error)
 }
 
 func setOpt(setter func(*C.uint8_t, C.int) C.fdb_error_t, param []byte) error {

@@ -94,7 +94,7 @@ func (d Database) CreateTransaction() (Transaction, error) {
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
-func (d Database) Transact(f func(tr Transaction) (interface{}, error)) (ret interface{}, e error) {
+func (d Database) Transact(f func(Transaction) (interface{}, error)) (ret interface{}, e error) {
 	tr, e := d.CreateTransaction()
 	/* Any error here is non-retryable */
 	if e != nil {
@@ -141,6 +141,16 @@ func (d Database) Transact(f func(tr Transaction) (interface{}, error)) (ret int
 			return
 		}
 	}
+}
+
+// FIXME: document
+func (d Database) ReadTransact(f func(Snapshot) (interface{}, error)) (interface{}, error) {
+	tr, e := d.CreateTransaction()
+	if e != nil {
+		return nil, e
+	}
+
+	return f(tr.Snapshot())
 }
 
 // Get returns the value associated with the specified key (or nil if the key

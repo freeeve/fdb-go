@@ -102,8 +102,13 @@ func (t Transaction) GetDatabase() Database {
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
-func (t Transaction) Transact(f func (tr Transaction) (interface{}, error)) (interface{}, error) {
+func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (interface{}, error) {
 	return f(t)
+}
+
+// FIXME: document
+func (t Transaction) ReadTransact(f func(Snapshot) (interface{}, error)) (interface{}, error) {
+	return f(t.Snapshot())
 }
 
 // Cancel cancels a transaction. All pending or future uses of the transaction
@@ -424,6 +429,11 @@ func (t Transaction) LocalityGetAddressesForKey(key KeyConvertible) FutureString
 // https://foundationdb.com/documentation/developer-guide.html#snapshot-reads.
 type Snapshot struct {
 	*transaction
+}
+
+// FIXME: document
+func (s Snapshot) ReadTransact(f func (Snapshot) (interface{}, error)) (interface{}, error) {
+	return f(s)
 }
 
 // Like (Transaction).Get(), but as a snapshot read.

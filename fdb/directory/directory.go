@@ -25,6 +25,7 @@ package directory
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
+	"errors"
 )
 
 const (
@@ -42,21 +43,43 @@ type Directory interface {
 	Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error)
 	CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error)
 
-	Open(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error)
+	Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error)
 
 	MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error)
 	Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error)
 
 	Remove(t fdb.Transactor, path []string) (bool, error)
 
-	Exists(t fdb.Transactor, path []string) (bool, error)
+	Exists(rt fdb.ReadTransactor, path []string) (bool, error)
 
-	List(t fdb.Transactor, path []string) ([]string, error)
+	List(rt fdb.ReadTransactor, path []string) ([]string, error)
 
 	GetLayer() []byte
 	GetPath() []string
 
 	getLayerForPath(path []string) DirectoryLayer
+}
+
+func stringsEqual(a, b []string) bool {
+    if len(a) != len(b) {
+        return false
+    }
+    for i, v := range a {
+        if v != b[i] {
+            return false
+        }
+    }
+    return true
+}
+
+func moveTo(t fdb.Transactor, dl DirectoryLayer, path, newAbsolutePath []string) (DirectorySubspace, error) {
+	partition_len := len(dl.path)
+
+	if !stringsEqual(newAbsolutePath[:partition_len], dl.path) {
+		return nil, errors.New("cannot move between partitions")
+	}
+
+	return dl.Move(t, path[partition_len:], newAbsolutePath[partition_len:])
 }
 
 var root = NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), nil)

@@ -24,7 +24,6 @@ package directory
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
-	"errors"
 )
 
 type DirectorySubspace interface {
@@ -39,120 +38,40 @@ type directorySubspace struct {
 	layer []byte
 }
 
-func (d directorySubspace) partitionSubpath(path []string, dl *DirectoryLayer) []string {
-	if dl == nil {
-		dl = &d.dl
-	}
-	r := make([]string, len(d.path) - len(dl.path) + len(path))
-	copy(r, d.path[len(dl.path):])
-	copy(r[len(d.path) - len(dl.path):], path)
-	return r
+func (d directorySubspace) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return d.dl.CreateOrOpen(t, d.dl.partitionSubpath(d.path, path), layer)
 }
 
-func (d directorySubspace) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.CreateOrOpen(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
+func (d directorySubspace) Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return d.dl.Create(t, d.dl.partitionSubpath(d.path, path), layer)
 }
 
-func (d directorySubspace) Create(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Create(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
+func (d directorySubspace) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
+	return d.dl.CreatePrefix(t, d.dl.partitionSubpath(d.path, path), layer, prefix)
 }
 
-func (d directorySubspace) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.CreatePrefix(tr, d.partitionSubpath(path, nil), layer, prefix)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
+func (d directorySubspace) Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return d.dl.Open(rt, d.dl.partitionSubpath(d.path, path), layer)
 }
 
-func (d directorySubspace) Open(t fdb.Transactor, path []string, layer []byte) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Open(tr, d.partitionSubpath(path, nil), layer)
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
+func (d directorySubspace) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
+	return moveTo(t, d.dl, d.path, newAbsolutePath)
 }
 
-func stringsEqual(a, b []string) bool {
-    if len(a) != len(b) {
-        return false
-    }
-    for i, v := range a {
-        if v != b[i] {
-            return false
-        }
-    }
-    return true
-}
-
-func (d directorySubspace) MoveTo(t fdb.Transactor, newAbsolutePath []string) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath([]string{})
-		partition_len := len(dl.path)
-		partition_path := newAbsolutePath[:partition_len]
-
-		if !stringsEqual(partition_path, dl.path) {
-			return nil, errors.New("cannot move between partitions")
-		}
-
-		return dl.Move(tr, d.path[partition_len:], newAbsolutePath[partition_len:])
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
-}
-
-func (d directorySubspace) Move(t fdb.Transactor, oldPath []string, newPath []string) (ds DirectorySubspace, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.Move(tr, d.partitionSubpath(oldPath, nil), d.partitionSubpath(newPath, nil))
-	})
-	if e == nil {
-		ds = r.(DirectorySubspace)
-	}
-	return
+func (d directorySubspace) Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error) {
+	return d.dl.Move(t, d.dl.partitionSubpath(d.path, oldPath), d.dl.partitionSubpath(d.path, newPath))
 }
 
 func (d directorySubspace) Remove(t fdb.Transactor, path []string) (bool, error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath(path)
-		return dl.Remove(tr, d.partitionSubpath(path, &dl))
-	})
-	return r.(bool), e
+	return d.dl.Remove(t, d.dl.partitionSubpath(d.path, path))
 }
 
-func (d directorySubspace) Exists(t fdb.Transactor, path []string) (bool, error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		dl := d.getLayerForPath(path)
-		return dl.Exists(tr, d.partitionSubpath(path, &dl))
-	})
-	return r.(bool), e
+func (d directorySubspace) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
+	return d.dl.Exists(rt, d.dl.partitionSubpath(d.path, path))
 }
 
-func (d directorySubspace) List(t fdb.Transactor, path []string) (subdirs []string, e error) {
-	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return d.dl.List(tr, d.partitionSubpath(path, nil))
-	})
-	if e == nil {
-		subdirs = r.([]string)
-	}
-	return
+func (d directorySubspace) List(rt fdb.ReadTransactor, path []string) (subdirs []string, e error) {
+	return d.dl.List(rt, d.dl.partitionSubpath(d.path, path))
 }
 
 func (d directorySubspace) GetLayer() []byte {

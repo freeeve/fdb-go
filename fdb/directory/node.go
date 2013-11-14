@@ -41,26 +41,24 @@ func (n *node) exists() bool {
 	return true
 }
 
-func (n *node) prefetchMetadata(tr fdb.Transaction) *node {
+func (n *node) prefetchMetadata(rtr fdb.ReadTransaction) *node {
 	if n.exists() {
-		n.layer(&tr)
+		n.layer(rtr)
 	}
 	return n
 }
 
-func (n *node) layer(tr *fdb.Transaction) fdb.FutureValue {
-	if tr != nil {
-		fv := tr.Get(n.subspace.Sub([]byte("layer")))
+func (n *node) layer(rtr fdb.ReadTransaction) fdb.FutureValue {
+	if n._layer == nil {
+		fv := rtr.Get(n.subspace.Sub([]byte("layer")))
 		n._layer = &fv
-	} else if n._layer == nil {
-		panic("Layer has not been read")
 	}
 
 	return *(n._layer)
 }
 
 func (n *node) isInPartition(tr *fdb.Transaction, includeEmptySubpath bool) bool {
-	return n.exists() && bytes.Compare(n.layer(tr).GetOrPanic(), []byte("partition")) == 0 && (includeEmptySubpath || len(n.targetPath) > len(n.path))
+	return n.exists() && bytes.Compare(n._layer.GetOrPanic(), []byte("partition")) == 0 && (includeEmptySubpath || len(n.targetPath) > len(n.path))
 }
 
 func (n *node) getPartitionSubpath() []string {
@@ -68,5 +66,5 @@ func (n *node) getPartitionSubpath() []string {
 }
 
 func (n *node) getContents(dl DirectoryLayer, tr *fdb.Transaction) (DirectorySubspace, error) {
-	return dl.contentsOfNode(n.subspace, n.path, n.layer(tr).GetOrPanic())
+	return dl.contentsOfNode(n.subspace, n.path, n._layer.GetOrPanic())
 }
