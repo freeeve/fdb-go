@@ -26,8 +26,8 @@
 // of higher-level data models.
 //
 // FoundationDB tuples can currently encode byte and unicode strings, integers
-// and NULL values. In Go these are represented as []byte, string, int64 (or
-// int) and nil.
+// and NULL values. In Go these are represented as []byte (or
+// fdb.KeyConvertible), string, int64 (or int) and nil.
 package tuple
 
 import (
@@ -95,9 +95,9 @@ func encodeInt(buf *bytes.Buffer, i int64) {
 	buf.Write(ibuf.Bytes()[8-n:])
 }
 
-// Pack returns a byte slice encoding the provided tuple. Pack will panic if the
-// tuple contains an element of any type other than []byte, string, int64, int
-// or nil.
+// Pack returns a new byte slice encoding the provided tuple. Pack will panic if
+// the tuple contains an element of any type other than []byte,
+// fdb.KeyConvertible, string, int64, int or nil.
 func (t Tuple) Pack() []byte {
 	buf := new(bytes.Buffer)
 
@@ -212,7 +212,7 @@ func Unpack(b []byte) (Tuple, error) {
 // Range returns the KeyRange that describes the keys encoding tuples that
 // strictly begin with t (that is, all tuples of greater length than t of which
 // t is a prefix). Range will panic if the tuple contains an element of any type
-// other than []byte, string, int64, int, or nil.
+// other than []byte, fdb.KeyConvertible, string, int64, int, or nil.
 func (t Tuple) Range() fdb.KeyRange {
 	p := t.Pack()
 
