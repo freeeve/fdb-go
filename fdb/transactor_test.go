@@ -46,7 +46,7 @@ func setMany(t fdb.Transactor, value []byte, keys ...[]byte) {
 }
 
 func ExampleTransactor() {
-	_ = fdb.APIVersion(100)
+	_ = fdb.APIVersion(200)
 	db, _ := fdb.OpenDefault()
 
 	fmt.Printf("Calling setOne with a database:\n")

@@ -29,7 +29,7 @@ import (
 func ExampleOpenDefault() {
 	var e error
 
-	e = fdb.APIVersion(100)
+	e = fdb.APIVersion(200)
 	if e != nil {
 		log.Fatalf("Unable to set API version (%v)\n", e)
 	}

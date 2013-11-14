@@ -27,7 +27,7 @@ import (
 )
 
 func ExamplePrefixRange() {
-	_ = fdb.APIVersion(100)
+	_ = fdb.APIVersion(200)
 	db, _ := fdb.OpenDefault()
 	tr, _ := db.CreateTransaction()
 
@@ -56,7 +56,7 @@ func ExamplePrefixRange() {
 }
 
 func ExampleRangeIterator() {
-	_ = fdb.APIVersion(100)
+	_ = fdb.APIVersion(200)
 	db, _ := fdb.OpenDefault()
 	tr, _ := db.CreateTransaction()
 

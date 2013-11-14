@@ -22,7 +22,7 @@
 package fdb
 
 /*
- #define FDB_API_VERSION 100
+ #define FDB_API_VERSION 200
  #include <foundationdb/fdb_c.h>
  #include <stdlib.h>
 */
@@ -87,7 +87,7 @@ func (opt NetworkOptions) setOpt(code int, param []byte) error {
 // library, an error will be returned. APIVersion must be called prior to any
 // other functions in the fdb package.
 //
-// Currently, the only API versions 100 and 101 are supported.
+// Currently, only API version 200 is supported.
 func APIVersion(version int) error {
 	networkMutex.Lock()
 	defer networkMutex.Unlock()
@@ -96,11 +96,11 @@ func APIVersion(version int) error {
 		return errAPIVersionAlreadySet
 	}
 
-	if version < 100 || version > 101 {
+	if version < 200 || version > 200 {
 		return errAPIVersionNotSupported
 	}
 
-	if e := C.fdb_select_api_version_impl(C.int(version), 101); e != 0 {
+	if e := C.fdb_select_api_version_impl(C.int(version), 200); e != 0 {
 		return Error{int(e)}
 	}
 
