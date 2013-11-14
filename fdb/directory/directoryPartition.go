@@ -41,7 +41,7 @@ func (dp DirectoryPartition) Key() fdb.Key {
 	panic(Error{"Cannot get key for the root of a directory partition."})
 }
 
-func (dp DirectoryPartition) Pack(t tuple.Tuple) []byte {
+func (dp DirectoryPartition) Pack(t tuple.Tuple) fdb.Key {
 	panic(Error{"Cannot pack keys using the root of a directory partition."})
 }
 

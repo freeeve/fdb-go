@@ -397,7 +397,7 @@ func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) subsp
 		if e != nil { panic(e) }
 		prevPrefix := pp[0].([]byte)
 		if bytes.HasPrefix(key, prevPrefix) {
-			return subspace.FromRawBytes(kvs[0].Key)
+			return subspace.FromBytes(kvs[0].Key)
 		}
 	}
 
@@ -473,14 +473,14 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 	copy(newPath, dl.path)
 	copy(newPath[len(dl.path):], path)
 
-	ss := subspace.FromRawBytes(prefix.([]byte))
+	ss := subspace.FromBytes(prefix.([]byte))
 
 	if bytes.Compare(layer, []byte("partition")) == 0 {
 		ssb := ss.Bytes()
 		nssb := make([]byte, len(ssb) + 1)
 		copy(nssb, ssb)
 		nssb[len(ssb)] = 0xFE
-		return DirectoryPartition{ss, NewDirectoryLayer(subspace.FromRawBytes(nssb), ss, newPath), dl}
+		return DirectoryPartition{ss, NewDirectoryLayer(subspace.FromBytes(nssb), ss, newPath), dl}
 	} else {
 		return directorySubspace{ss, dl, newPath, layer}
 	}

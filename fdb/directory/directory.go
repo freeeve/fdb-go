@@ -68,7 +68,7 @@ var root *DirectoryLayer
 
 func Root() Directory {
 	if root == nil {
-		dl := NewDirectoryLayer(subspace.FromRawBytes([]byte{0xFE}), subspace.AllKeys(), []string{})
+		dl := NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), nil)
 		root = &dl
 	}
 
