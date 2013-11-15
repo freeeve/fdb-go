@@ -35,10 +35,11 @@ type StackMachine struct {
 	lastVersion int64
 	threads sync.WaitGroup
 	verbose bool
+	de *DirectoryExtension
 }
 
-func newStackMachine(prefix []byte, verbose bool) *StackMachine {
-	sm := StackMachine{verbose: verbose, prefix: prefix}
+func newStackMachine(prefix []byte, verbose bool, de *DirectoryExtension) *StackMachine {
+	sm := StackMachine{verbose: verbose, prefix: prefix, de: de}
 	return &sm
 }
 
@@ -76,6 +77,34 @@ func (sm *StackMachine) waitAndPop() (ret stackEntry) {
 		log.Fatalf("Don't know how to pop stack element %v %T\n", el, el)
 	}
 	return
+}
+
+func (sm *StackMachine) popSelector() fdb.KeySelector {
+	sel := fdb.KeySelector{fdb.Key(sm.waitAndPop().item.([]byte)), int64ToBool(sm.waitAndPop().item.(int64)), int(sm.waitAndPop().item.(int64))}
+	return sel
+}
+
+func (sm *StackMachine) popKeyRange() fdb.KeyRange {
+	kr := fdb.KeyRange{fdb.Key(sm.waitAndPop().item.([]byte)), fdb.Key(sm.waitAndPop().item.([]byte))}
+	return kr
+}
+
+func (sm *StackMachine) popRangeOptions() fdb.RangeOptions {
+	var limit int
+	switch l := sm.waitAndPop().item.(type) {
+	case int64:
+		limit = int(l)
+	}
+	ro := fdb.RangeOptions{Limit: limit, Reverse: int64ToBool(sm.waitAndPop().item.(int64)), Mode: fdb.StreamingMode(sm.waitAndPop().item.(int64) + 1)}
+	return ro
+}
+
+func (sm *StackMachine) popPrefixRange() fdb.ExactRange {
+	er, e := fdb.PrefixRange(sm.waitAndPop().item.([]byte))
+	if e != nil {
+		panic(e)
+	}
+	return er
 }
 
 func (sm *StackMachine) pushRange(idx int, sl []fdb.KeyValue) {
@@ -117,6 +146,16 @@ func (sm *StackMachine) dumpStack() {
 	}
 }
 
+func (sm *StackMachine) executeMutation(t fdb.Transactor, f func (fdb.Transaction) (interface{}, error), isDB bool, idx int) {
+	_, e := t.Transact(f)
+	if e != nil {
+		panic(e)
+	}
+	if isDB {
+		sm.store(idx, []byte("RESULT_NOT_PRESENT"))
+	}
+}
+
 func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -139,56 +178,61 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		fmt.Printf(" ]\n")
 	}
 
-	var obj interface{}
+	var t fdb.Transactor
+	var rt fdb.ReadTransactor
+
+	var isDB bool
+
 	switch {
 	case strings.HasSuffix(op, "_SNAPSHOT"):
-		obj = sm.tr.Snapshot()
+		rt = sm.tr.Snapshot()
 		op = op[:len(op)-9]
 	case strings.HasSuffix(op, "_DATABASE"):
-		obj = db
+		t = db
+		rt = db
 		op = op[:len(op)-9]
+		isDB = true
 	default:
-		obj = sm.tr
+		t = sm.tr
+		rt = sm.tr
 	}
 
-	switch string(op) {
-	case "PUSH":
+	switch {
+	case op == "PUSH":
 		sm.store(idx, inst[1])
-	case "DUP":
+	case op == "DUP":
 		entry := sm.stack[len(sm.stack) - 1]
 		sm.store(entry.idx, entry.item)
-	case "EMPTY_STACK":
+	case op == "EMPTY_STACK":
 		sm.stack = []stackEntry{}
 		sm.stack = make([]stackEntry, 0)
-	case "SWAP":
+	case op == "SWAP":
 		idx := sm.waitAndPop().item.(int64)
 		sm.stack[len(sm.stack) - 1], sm.stack[len(sm.stack) - 1 - int(idx)] = sm.stack[len(sm.stack) - 1 - int(idx)], sm.stack[len(sm.stack) - 1]
-	case "POP":
+	case op == "POP":
 		sm.stack = sm.stack[:len(sm.stack) - 1]
-	case "SUB":
+	case op == "SUB":
 		sm.store(idx, sm.waitAndPop().item.(int64) - sm.waitAndPop().item.(int64))
-	case "NEW_TRANSACTION":
+	case op == "NEW_TRANSACTION":
 		sm.tr, e = db.CreateTransaction()
 		if e != nil {
 			panic(e)
 		}
-	case "ON_ERROR":
+	case op == "ON_ERROR":
 		sm.store(idx, sm.tr.OnError(fdb.Error{int(sm.waitAndPop().item.(int64))}))
-	case "GET_READ_VERSION":
-		sm.lastVersion = obj.(fdb.ReadTransaction).GetReadVersion().GetOrPanic()
-		sm.store(idx, []byte("GOT_READ_VERSION"))
-	case "SET":
-		switch o := obj.(type) {
-		case fdb.Database:
-			e = o.Set(fdb.Key(sm.waitAndPop().item.([]byte)), sm.waitAndPop().item.([]byte))
-			if e != nil {
-				panic(e)
-			}
-			sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-		case fdb.Transaction:
-			o.Set(fdb.Key(sm.waitAndPop().item.([]byte)), sm.waitAndPop().item.([]byte))
-		}
-	case "LOG_STACK":
+	case op == "GET_READ_VERSION":
+		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+			sm.lastVersion = rtr.GetReadVersion().GetOrPanic()
+			sm.store(idx, []byte("GOT_READ_VERSION"))
+			return nil, nil
+		})
+		if e != nil { panic(e) }
+	case op == "SET":
+		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+			tr.Set(fdb.Key(sm.waitAndPop().item.([]byte)), sm.waitAndPop().item.([]byte))
+			return nil, nil
+		}, isDB, idx)
+	case op == "LOG_STACK":
 		prefix := sm.waitAndPop().item.([]byte)
 		for i := len(sm.stack)-1; i >= 0; i-- {
 			if i % 100 == 0 {
@@ -214,157 +258,76 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 			sm.tr.Set(fdb.Key(pk), pv[:vl])
 		}
 		sm.tr.Commit().GetOrPanic()
-	case "GET":
-		switch o := obj.(type) {
-		case fdb.Database:
-			v, e := db.Get(fdb.Key(sm.waitAndPop().item.([]byte)))
-			if e != nil {
-				panic(e)
-			}
-			if v != nil {
-				sm.store(idx, v)
-			} else {
-				sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-			}
-		case fdb.ReadTransaction:
-			sm.store(idx, o.Get(fdb.Key(sm.waitAndPop().item.([]byte))))
-		}
-	case "COMMIT":
+	case op == "GET":
+		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+			sm.store(idx, rtr.Get(fdb.Key(sm.waitAndPop().item.([]byte))))
+			return nil, nil
+		})
+	case op == "COMMIT":
 		sm.store(idx, sm.tr.Commit())
-	case "RESET":
+	case op == "RESET":
 		sm.tr.Reset()
-	case "CLEAR":
-		switch o := obj.(type) {
-		case fdb.Database:
-			e := db.Clear(fdb.Key(sm.waitAndPop().item.([]byte)))
-			if e != nil {
-				panic(e)
-			}
-			sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-		case fdb.Transaction:
-			o.Clear(fdb.Key(sm.waitAndPop().item.([]byte)))
-		}
-	case "SET_READ_VERSION":
+	case op == "CLEAR":
+		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+			tr.Clear(fdb.Key(sm.waitAndPop().item.([]byte)))
+			return nil, nil
+		}, isDB, idx)
+	case op == "SET_READ_VERSION":
 		sm.tr.SetReadVersion(sm.lastVersion)
-	case "WAIT_FUTURE":
+	case op == "WAIT_FUTURE":
 		entry := sm.waitAndPop()
 		sm.store(entry.idx, entry.item)
-	case "GET_COMMITTED_VERSION":
+	case op == "GET_COMMITTED_VERSION":
 		sm.lastVersion, e = sm.tr.GetCommittedVersion()
 		if e != nil {
 			panic(e)
 		}
 		sm.store(idx, []byte("GOT_COMMITTED_VERSION"))
-	case "GET_KEY":
-		sel := fdb.KeySelector{fdb.Key(sm.waitAndPop().item.([]byte)), int64ToBool(sm.waitAndPop().item.(int64)), int(sm.waitAndPop().item.(int64))}
-		switch o := obj.(type) {
-		case fdb.Database:
-			v, e := o.GetKey(sel)
-			if e != nil {
-				panic(e)
-			}
-			sm.store(idx, []byte(v))
-		case fdb.ReadTransaction:
-			sm.store(idx, o.GetKey(sel))
+	case op == "GET_KEY":
+		sel := sm.popSelector()
+		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+			sm.store(idx, rtr.GetKey(sel))
+			return nil, nil
+		})
+	case strings.HasPrefix(op, "GET_RANGE"):
+		var r fdb.Range
+
+		switch op[9:] {
+		case "_STARTS_WITH":
+			r = sm.popPrefixRange()
+		case "_SELECTOR":
+			r = fdb.SelectorRange{sm.popSelector(), sm.popSelector()}
+		case "":
+			r = sm.popKeyRange()
 		}
-	case "GET_RANGE":
-		begin := fdb.Key(sm.waitAndPop().item.([]byte))
-		end := fdb.Key(sm.waitAndPop().item.([]byte))
-		var limit int
-		switch l := sm.waitAndPop().item.(type) {
-		case int64:
-			limit = int(l)
+
+		ro := sm.popRangeOptions()
+		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+			sm.pushRange(idx, rtr.GetRange(r, ro).GetSliceOrPanic())
+			return nil, nil
+		})
+	case strings.HasPrefix(op, "CLEAR_RANGE"):
+		var er fdb.ExactRange
+
+		switch op[11:] {
+		case "_STARTS_WITH":
+			er = sm.popPrefixRange()
+		case "":
+			er = sm.popKeyRange()
 		}
-		reverse := int64ToBool(sm.waitAndPop().item.(int64))
-		mode := sm.waitAndPop().item.(int64)
-		switch o := obj.(type) {
-		case fdb.Database:
-			v, e := db.GetRange(fdb.KeyRange{begin, end}, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)})
-			if e != nil {
-				panic(e)
-			}
-			sm.pushRange(idx, v)
-		case fdb.ReadTransaction:
-			sm.pushRange(idx, o.GetRange(fdb.KeyRange{begin, end}, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)}).GetSliceOrPanic())
-		}
-	case "CLEAR_RANGE":
-		switch o := obj.(type) {
-		case fdb.Database:
-			e := o.ClearRange(fdb.KeyRange{fdb.Key(sm.waitAndPop().item.([]byte)), fdb.Key(sm.waitAndPop().item.([]byte))})
-			if e != nil {
-				panic(e)
-			}
-			sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-		case fdb.Transaction:
-			o.ClearRange(fdb.KeyRange{fdb.Key(sm.waitAndPop().item.([]byte)), fdb.Key(sm.waitAndPop().item.([]byte))})
-		}
-	case "GET_RANGE_STARTS_WITH":
-		prefix := sm.waitAndPop().item.([]byte)
-		var limit int
-		switch l := sm.waitAndPop().item.(type) {
-		case int64:
-			limit = int(l)
-		}
-		reverse := int64ToBool(sm.waitAndPop().item.(int64))
-		mode := sm.waitAndPop().item.(int64)
-		er, e := fdb.PrefixRange(prefix)
-		if e != nil {
-			panic(e)
-		}
-		switch o := obj.(type) {
-		case fdb.Database:
-			v, e := db.GetRange(er, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)})
-			if e != nil {
-				panic(e)
-			}
-			sm.pushRange(idx, v)
-		case fdb.ReadTransaction:
-			sm.pushRange(idx, o.GetRange(er, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)}).GetSliceOrPanic())
-		}
-	case "GET_RANGE_SELECTOR":
-		begin := fdb.KeySelector{Key: fdb.Key(sm.waitAndPop().item.([]byte)), OrEqual: int64ToBool(sm.waitAndPop().item.(int64)), Offset: int(sm.waitAndPop().item.(int64))}
-		end := fdb.KeySelector{Key: fdb.Key(sm.waitAndPop().item.([]byte)), OrEqual: int64ToBool(sm.waitAndPop().item.(int64)), Offset: int(sm.waitAndPop().item.(int64))}
-		var limit int
-		switch l := sm.waitAndPop().item.(type) {
-		case int64:
-			limit = int(l)
-		}
-		reverse := int64ToBool(sm.waitAndPop().item.(int64))
-		mode := sm.waitAndPop().item.(int64)
-		switch o := obj.(type) {
-		case fdb.Database:
-			v, e := db.GetRange(fdb.SelectorRange{begin, end}, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)})
-			if e != nil {
-				panic(e)
-			}
-			sm.pushRange(idx, v)
-		case fdb.ReadTransaction:
-			sm.pushRange(idx, o.GetRange(fdb.SelectorRange{begin, end}, fdb.RangeOptions{Limit: int(limit), Reverse: reverse, Mode: fdb.StreamingMode(mode+1)}).GetSliceOrPanic())
-		}
-	case "CLEAR_RANGE_STARTS_WITH":
-		prefix := sm.waitAndPop().item.([]byte)
-		er, e := fdb.PrefixRange(prefix)
-		if e != nil {
-			panic(e)
-		}
-		switch o := obj.(type) {
-		case fdb.Database:
-			e := o.ClearRange(er)
-			if e != nil {
-				panic(e)
-			}
-			sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-		case fdb.Transaction:
-			o.ClearRange(er)
-		}
-	case "TUPLE_PACK":
+
+		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+			tr.ClearRange(er)
+			return nil, nil
+		}, isDB, idx)
+	case op == "TUPLE_PACK":
 		var t tuple.Tuple
 		count := sm.waitAndPop().item.(int64)
 		for i := 0; i < int(count); i++ {
 			t = append(t, sm.waitAndPop().item)
 		}
 		sm.store(idx, t.Pack())
-	case "TUPLE_UNPACK":
+	case op == "TUPLE_UNPACK":
 		t, e := tuple.Unpack(sm.waitAndPop().item.([]byte))
 		if e != nil {
 			panic(e)
@@ -372,7 +335,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		for _, el := range(t) {
 			sm.store(idx, tuple.Tuple{el}.Pack())
 		}
-	case "TUPLE_RANGE":
+	case op == "TUPLE_RANGE":
 		var t tuple.Tuple
 		count := sm.waitAndPop().item.(int64)
 		for i := 0; i < int(count); i++ {
@@ -381,14 +344,14 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		kr := t.Range()
 		sm.store(idx, kr.Begin)
 		sm.store(idx, kr.End)
-	case "START_THREAD":
-		newsm := newStackMachine(sm.waitAndPop().item.([]byte), verbose)
+	case op == "START_THREAD":
+		newsm := newStackMachine(sm.waitAndPop().item.([]byte), verbose, sm.de)
 		sm.threads.Add(1)
 		go func() {
 			newsm.Run()
 			sm.threads.Done()
 		}()
-	case "WAIT_EMPTY":
+	case op == "WAIT_EMPTY":
 		prefix := sm.waitAndPop().item.([]byte)
 		er, e := fdb.PrefixRange(prefix)
 		if e != nil {
@@ -402,31 +365,31 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 			return nil, nil
 		})
 		sm.store(idx, []byte("WAITED_FOR_EMPTY"))
-	case "READ_CONFLICT_RANGE":
+	case op == "READ_CONFLICT_RANGE":
 		e = sm.tr.AddReadConflictRange(fdb.KeyRange{fdb.Key(sm.waitAndPop().item.([]byte)), fdb.Key(sm.waitAndPop().item.([]byte))})
 		if e != nil {
 			panic(e)
 		}
 		sm.store(idx, []byte("SET_CONFLICT_RANGE"))
-	case "WRITE_CONFLICT_RANGE":
+	case op == "WRITE_CONFLICT_RANGE":
 		e = sm.tr.AddWriteConflictRange(fdb.KeyRange{fdb.Key(sm.waitAndPop().item.([]byte)), fdb.Key(sm.waitAndPop().item.([]byte))})
 		if e != nil {
 			panic(e)
 		}
 		sm.store(idx, []byte("SET_CONFLICT_RANGE"))
-	case "READ_CONFLICT_KEY":
+	case op == "READ_CONFLICT_KEY":
 		e = sm.tr.AddReadConflictKey(fdb.Key(sm.waitAndPop().item.([]byte)))
 		if e != nil {
 			panic(e)
 		}
 		sm.store(idx, []byte("SET_CONFLICT_KEY"))
-	case "WRITE_CONFLICT_KEY":
+	case op == "WRITE_CONFLICT_KEY":
 		e = sm.tr.AddWriteConflictKey(fdb.Key(sm.waitAndPop().item.([]byte)))
 		if e != nil {
 			panic(e)
 		}
 		sm.store(idx, []byte("SET_CONFLICT_KEY"))
-	case "ATOMIC_OP":
+	case op == "ATOMIC_OP":
 		opname := strings.Title(strings.ToLower(string(sm.waitAndPop().item.([]byte))))
 		switch opname {
 		case "And":
@@ -438,16 +401,17 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		}
 		key := fdb.Key(sm.waitAndPop().item.([]byte))
 		value := sm.waitAndPop().item.([]byte)
-		reflect.ValueOf(obj).MethodByName(opname).Call([]reflect.Value{reflect.ValueOf(key), reflect.ValueOf(value)})
-		switch obj.(type) {
-		case fdb.Database:
-			sm.store(idx, []byte("RESULT_NOT_PRESENT"))
-		}
-	case "DISABLE_WRITE_CONFLICT":
+		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+			reflect.ValueOf(tr).MethodByName(opname).Call([]reflect.Value{reflect.ValueOf(key), reflect.ValueOf(value)})
+			return nil, nil
+		}, isDB, idx)
+	case op == "DISABLE_WRITE_CONFLICT":
 		sm.tr.Options().SetNextWriteNoWriteConflictRange()
-	case "CANCEL":
+	case op == "CANCEL":
 		sm.tr.Cancel()
-	case "UNIT_TESTS":
+	case op == "UNIT_TESTS":
+	case strings.HasPrefix(op, "DIRECTORY_"):
+		sm.de.processOp(sm, op[10:], isDB, idx, t, rt)
 	default:
 		log.Fatalf("Unhandled operation %s\n", string(inst[0].([]byte)))
 	}
@@ -502,12 +466,12 @@ func main() {
 		log.Fatal(e)
 	}
 
-	db, e = fdb.Open(clusterFile, []byte("DB"))
+	db, e = fdb.OpenDefault()
 	if e != nil {
 		log.Fatal(e)
 	}
 
-	sm := newStackMachine(prefix, verbose)
+	sm := newStackMachine(prefix, verbose, newDirectoryExtension())
 
 	sm.Run()
 }

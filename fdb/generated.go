@@ -213,33 +213,9 @@ func (t Transaction) Add(key KeyConvertible, param []byte) {
 	t.atomicOp(key.ToFDBKey(), param, 2)
 }
 
-// Add performs an addition of little-endian integers. If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``. The integers to be added must be stored in a little-endian representation.  They can be signed in two's complement representation or unsigned. You can add to an integer at a known offset in the value by prepending the appropriate number of zero bytes to ``param`` and padding with zero bytes to match the length of the value. However, this offset technique requires that you know the addition will not cause the integer field within the value to overflow.
-func (d Database) Add(key KeyConvertible, param []byte) error {
-	_, e := d.Transact(func (tr Transaction) (interface{}, error) {
-		tr.Add(key, param)
-		return nil, nil
-	})
-	if e != nil {
-		return e
-	}
-	return nil
-}
-
 // BitAnd performs a bitwise ``and`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
 func (t Transaction) BitAnd(key KeyConvertible, param []byte) {
 	t.atomicOp(key.ToFDBKey(), param, 6)
-}
-
-// BitAnd performs a bitwise ``and`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
-func (d Database) BitAnd(key KeyConvertible, param []byte) error {
-	_, e := d.Transact(func (tr Transaction) (interface{}, error) {
-		tr.BitAnd(key, param)
-		return nil, nil
-	})
-	if e != nil {
-		return e
-	}
-	return nil
 }
 
 // BitOr performs a bitwise ``or`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
@@ -247,33 +223,9 @@ func (t Transaction) BitOr(key KeyConvertible, param []byte) {
 	t.atomicOp(key.ToFDBKey(), param, 7)
 }
 
-// BitOr performs a bitwise ``or`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
-func (d Database) BitOr(key KeyConvertible, param []byte) error {
-	_, e := d.Transact(func (tr Transaction) (interface{}, error) {
-		tr.BitOr(key, param)
-		return nil, nil
-	})
-	if e != nil {
-		return e
-	}
-	return nil
-}
-
 // BitXor performs a bitwise ``xor`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
 func (t Transaction) BitXor(key KeyConvertible, param []byte) {
 	t.atomicOp(key.ToFDBKey(), param, 8)
-}
-
-// BitXor performs a bitwise ``xor`` operation.  If the existing value in the database is not present or shorter than ``param``, it is first extended to the length of ``param`` with zero bytes.  If ``param`` is shorter than the existing value in the database, the existing value is truncated to match the length of ``param``.
-func (d Database) BitXor(key KeyConvertible, param []byte) error {
-	_, e := d.Transact(func (tr Transaction) (interface{}, error) {
-		tr.BitXor(key, param)
-		return nil, nil
-	})
-	if e != nil {
-		return e
-	}
-	return nil
 }
 
 type conflictRangeType int

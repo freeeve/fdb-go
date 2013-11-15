@@ -117,19 +117,7 @@ func writeMutation(opt Option) {
 func (t Transaction) %s(key KeyConvertible, param []byte) {
 	t.atomicOp(key.ToFDBKey(), param, %d)
 }
-
-// %s %s
-func (d Database) %s(key KeyConvertible, param []byte) error {
-	_, e := d.Transact(func (tr Transaction) (interface{}, error) {
-		tr.%s(key, param)
-		return nil, nil
-	})
-	if e != nil {
-		return e
-	}
-	return nil
-}
-`, tname, desc, tname, opt.Code, tname, desc, tname, tname)
+`, tname, desc, tname, opt.Code)
 }
 
 func writeEnum(scope Scope, opt Option, delta int) {

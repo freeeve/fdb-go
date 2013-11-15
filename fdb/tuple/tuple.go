@@ -60,7 +60,7 @@ var sizeLimits = []uint64{
 
 func encodeBytes(buf *bytes.Buffer, code byte, b []byte) {
 	buf.WriteByte(code)
-	buf.Write(bytes.Replace(b, []byte{0x00}, []byte{0x00, 0xff}, -1))
+	buf.Write(bytes.Replace(b, []byte{0x00}, []byte{0x00, 0xFF}, -1))
 	buf.WriteByte(0x00)
 }
 
@@ -130,7 +130,7 @@ func findTerminator(b []byte) int {
 	for {
 		idx := bytes.IndexByte(bp, 0x00)
 		length += idx
-		if idx + 1 == len(bp) || bp[idx+1] != 0xff {
+		if idx + 1 == len(bp) || bp[idx+1] != 0xFF {
 			break
 		}
 		length += 2
@@ -142,7 +142,7 @@ func findTerminator(b []byte) int {
 
 func decodeBytes(b []byte) ([]byte, int) {
 	idx := findTerminator(b[1:])
-	return bytes.Replace(b[1:idx+1], []byte{0x00, 0xff}, []byte{0x00}, -1), idx + 2
+	return bytes.Replace(b[1:idx+1], []byte{0x00, 0xFF}, []byte{0x00}, -1), idx + 2
 }
 
 func decodeString(b []byte) (string, int) {

@@ -41,7 +41,7 @@ type DirectoryLayer struct {
 	path []string
 }
 
-func NewDirectoryLayer(nodeSS subspace.Subspace, contentSS subspace.Subspace, path []string) DirectoryLayer {
+func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace) DirectoryLayer {
 	var dl DirectoryLayer
 
 	dl.nodeSS = nodeSS
@@ -49,8 +49,6 @@ func NewDirectoryLayer(nodeSS subspace.Subspace, contentSS subspace.Subspace, pa
 
 	dl.rootNode = dl.nodeSS.Sub(dl.nodeSS.Bytes())
 	dl.allocator = newHCA(dl.rootNode.Sub([]byte("hca")))
-
-	dl.path = path
 
 	return dl
 }
@@ -173,8 +171,8 @@ func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []b
 }
 
 func (dl DirectoryLayer) Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error) {
-	r, e := rt.ReadTransact(func (sn fdb.Snapshot) (interface{}, error) {
-		return dl.createOrOpen(sn, nil, path, layer, nil, false, true)
+	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		return dl.createOrOpen(rtr, nil, path, layer, nil, false, true)
 	})
 	if e != nil {
 		return nil, e
@@ -183,12 +181,12 @@ func (dl DirectoryLayer) Open(rt fdb.ReadTransactor, path []string, layer []byte
 }
 
 func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
-	r, e := rt.ReadTransact(func (sn fdb.Snapshot) (interface{}, error) {
-		if e := dl.checkVersion(sn, nil); e != nil {
+	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		if e := dl.checkVersion(rtr, nil); e != nil {
 			return false, e
 		}
 
-		node := dl.find(sn, path).prefetchMetadata(sn)
+		node := dl.find(rtr, path).prefetchMetadata(rtr)
 		if !node.exists() {
 			return false, nil
 		}
@@ -198,7 +196,7 @@ func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, err
 			if e != nil {
 				return false, e
 			}
-			return nc.Exists(sn, node.getPartitionSubpath())
+			return nc.Exists(rtr, node.getPartitionSubpath())
 		}
 
 		return true, nil
@@ -207,12 +205,12 @@ func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, err
 }
 
 func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, error) {
-	r, e := rt.ReadTransact(func (sn fdb.Snapshot) (interface{}, error) {
-		if e := dl.checkVersion(sn, nil); e != nil {
+	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		if e := dl.checkVersion(rtr, nil); e != nil {
 			return nil, e
 		}
 
-		node := dl.find(sn, path).prefetchMetadata(sn)
+		node := dl.find(rtr, path).prefetchMetadata(rtr)
 		if !node.exists() {
 			return nil, errors.New("the directory does not exist")
 		}
@@ -222,12 +220,11 @@ func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, e
 			if e != nil {
 				return nil, e
 			}
-			return nc.List(sn, node.getPartitionSubpath())
+			return nc.List(rtr, node.getPartitionSubpath())
 		}
 
-		return dl.subdirNames(sn, node.subspace)
+		return dl.subdirNames(rtr, node.subspace)
 	})
-
 	return r.([]string), e
 }
 
@@ -237,7 +234,7 @@ func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (Dir
 
 func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		if e := dl.checkVersion(tr, nil); e != nil {
+		if e := dl.checkVersion(tr, &tr); e != nil {
 			return nil, e
 		}
 
@@ -296,7 +293,7 @@ func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []stri
 
 func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		if e := dl.checkVersion(tr, nil); e != nil {
+		if e := dl.checkVersion(tr, &tr); e != nil {
 			return false, e
 		}
 
@@ -310,7 +307,7 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 			return false, nil
 		}
 
-		if node.isInPartition(nil, true) {
+		if node.isInPartition(nil, false) {
 			nc, e := node.getContents(dl, nil)
 			if e != nil {
 				return false, e
@@ -422,7 +419,7 @@ func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) (subs
 }
 
 func (dl DirectoryLayer) isPrefixFree(tr fdb.Transaction, prefix []byte) (bool, error) {
-	if prefix == nil {
+	if len(prefix) == 0 {
 		return false, nil
 	}
 
@@ -509,7 +506,9 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 		nssb := make([]byte, len(pb) + 1)
 		copy(nssb, pb)
 		nssb[len(pb)] = 0xFE
-		return DirectoryPartition{NewDirectoryLayer(subspace.FromBytes(nssb), ss, newPath), dl}, nil
+		ndl := NewDirectoryLayer(subspace.FromBytes(nssb), ss)
+		ndl.path = newPath
+		return DirectoryPartition{ndl, dl}, nil
 	} else {
 		return directorySubspace{ss, dl, newPath, layer}, nil
 	}

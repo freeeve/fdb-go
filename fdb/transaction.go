@@ -41,6 +41,8 @@ type ReadTransaction interface {
 	GetReadVersion() FutureVersion
 	GetDatabase() Database
 	LocalityGetAddressesForKey(key KeyConvertible) FutureStringArray
+
+	ReadTransactor
 }
 
 // Transaction is a handle to a FoundationDB transaction. Transaction is a
@@ -107,8 +109,8 @@ func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (interf
 }
 
 // FIXME: document
-func (t Transaction) ReadTransact(f func(Snapshot) (interface{}, error)) (interface{}, error) {
-	return f(t.Snapshot())
+func (t Transaction) ReadTransact(f func(ReadTransaction) (interface{}, error)) (interface{}, error) {
+	return f(t)
 }
 
 // Cancel cancels a transaction. All pending or future uses of the transaction
@@ -432,7 +434,7 @@ type Snapshot struct {
 }
 
 // FIXME: document
-func (s Snapshot) ReadTransact(f func (Snapshot) (interface{}, error)) (interface{}, error) {
+func (s Snapshot) ReadTransact(f func (ReadTransaction) (interface{}, error)) (interface{}, error) {
 	return f(s)
 }
 
