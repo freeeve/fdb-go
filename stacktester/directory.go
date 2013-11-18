@@ -93,6 +93,8 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 		}
 	}()
 
+	var e error
+
 	switch {
 	case op == "CREATE_SUBSPACE":
 		tuples := sm.popTuples(1)
@@ -128,14 +130,13 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 			layer = l.([]byte)
 		}
 		p := sm.waitAndPop().item
-		var prefix []byte
-		if p != nil {
-			prefix = p.([]byte)
-			if prefix == nil {
-				prefix = []byte{}
-			}
+		var d directory.Directory
+		if p == nil {
+			d, e = de.cwd().Create(t, tupleToPath(tuples[0]), layer)
+		} else {
+			// p.([]byte) itself may be nil, but CreatePrefix handles that appropriately
+			d, e = de.cwd().CreatePrefix(t, tupleToPath(tuples[0]), layer, p.([]byte))
 		}
-		d, e := de.cwd().CreatePrefix(t, tupleToPath(tuples[0]), layer, prefix)
 		if e != nil { panic(e) }
 		de.store(d)
 	case op == "OPEN":
@@ -165,15 +166,26 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 		if e != nil { panic(e) }
 		de.store(d)
 	case strings.HasPrefix(op, "REMOVE"):
-		ok, e := de.cwd().Remove(t, sm.maybePath())
-		if e != nil { panic(e) }
-		switch op[6:] {
-		case "":
-			if !ok {
-				panic("directory does not exist")
+		path := sm.maybePath()
+		// This ***HAS*** to call Transact to ensure that any directory version
+		// key set in the process of trying to remove this potentially
+		// non-existent directory, in the REMOVE but not REMOVE_IF_EXISTS case,
+		// doesn't end up committing the version key. (Other languages have
+		// separate remove() and remove_if_exists() so don't have this tricky
+		// issue).
+		_, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
+			ok, e := de.cwd().Remove(tr, path)
+			if e != nil { panic(e) }
+			switch op[6:] {
+			case "":
+				if !ok {
+					panic("directory does not exist")
+				}
+			case "_IF_EXISTS":
 			}
-		case "_IF_EXISTS":
-		}
+			return nil, nil
+		})
+		if e != nil { panic(e) }
 	case op == "LIST":
 		subs, e := de.cwd().List(rt, sm.maybePath())
 		if e != nil { panic(e) }
@@ -215,10 +227,10 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 		k := sm.waitAndPop().item.([]byte)
 		k = append(k, tuple.Tuple{de.index}.Pack()...)
 		v := de.css().Bytes()
-		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+		t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 			tr.Set(fdb.Key(k), v)
 			return nil, nil
-		}, isDB, idx)
+		})
 	case op == "LOG_DIRECTORY":
 		rp := sm.waitAndPop().item.([]byte)
 		ss := subspace.FromBytes(rp).Sub(de.index)
@@ -242,13 +254,13 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 			if e != nil { panic(e) }
 		}
 		v4 := tuplePackStrings(subs)
-		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
+		t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 			tr.Set(k1, v1)
 			tr.Set(k2, v2)
 			tr.Set(k3, v3)
 			tr.Set(k4, v4)
 			return nil, nil
-		}, isDB, idx)
+		})
 	case op == "STRIP_PREFIX":
 		ba := sm.waitAndPop().item.([]byte)
 		ssb := de.css().Bytes()

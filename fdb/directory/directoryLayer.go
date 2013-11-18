@@ -161,6 +161,9 @@ func (dl DirectoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (
 }
 
 func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
+	if prefix == nil {
+		prefix = []byte{}
+	}
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		return dl.createOrOpen(tr, &tr, path, layer, prefix, true, false)
 	})
@@ -327,7 +330,7 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 
 func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) error {
 	nodes := dl.subdirNodes(tr, node)
-	for i := 0; i < len(nodes); i++ {
+	for i := range nodes {
 		if e := dl.removeRecursive(tr, nodes[i]); e != nil {
 			return e
 		}
@@ -521,7 +524,7 @@ func (dl DirectoryLayer) nodeWithPrefix(prefix []byte) subspace.Subspace {
 
 func (dl DirectoryLayer) find(rtr fdb.ReadTransaction, path []string) *node {
 	n := &node{dl.rootNode, []string{}, path, nil}
-	for i := 0; i < len(path); i++ {
+	for i := range path {
 		n = &node{dl.nodeWithPrefix(rtr.Get(n.subspace.Sub(_SUBDIRS, path[i])).GetOrPanic()), path[:i+1], path, nil}
 		if !n.exists() || bytes.Compare(n.layer(rtr).GetOrPanic(), []byte("partition")) == 0 {
 			return n
