@@ -451,9 +451,9 @@ func (sm *StackMachine) Run() {
 
 var db fdb.Database
 
-var clusterFile string
-
 func main() {
+	var clusterFile string
+
 	prefix := []byte(os.Args[1])
 	if len(os.Args) > 2 {
 		clusterFile = os.Args[2]
@@ -466,7 +466,7 @@ func main() {
 		log.Fatal(e)
 	}
 
-	db, e = fdb.OpenDefault()
+	db, e = fdb.Open(clusterFile, []byte("DB"))
 	if e != nil {
 		log.Fatal(e)
 	}
