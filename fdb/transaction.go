@@ -34,6 +34,9 @@ import (
 // A ReadTransaction represents an object that can asynchronously read from a
 // FoundationDB database. Transaction and Snapshot both satisfy the
 // ReadTransaction interface.
+//
+// All ReadTransactions satisfy the ReadTransactor interface and may be used
+// with read-only transactional functions.
 type ReadTransaction interface {
 	Get(key KeyConvertible) FutureValue
 	GetKey(sel Selectable) FutureKey
@@ -108,7 +111,15 @@ func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (interf
 	return f(t)
 }
 
-// FIXME: document
+// ReadTransact passes the Transaction receiver object to the caller-provided
+// function (as a ReadTransaction), but does not handle errors or commit the
+// transaction.
+//
+// ReadTransact makes Transaction satisfy the ReadTransactor interface, allowing
+// read-only transactional functions to be used compositionally.
+//
+// See the ReadTransactor interface for an example of using ReadTransact with
+// Transaction, Snapshot and Database objects.
 func (t Transaction) ReadTransact(f func(ReadTransaction) (interface{}, error)) (interface{}, error) {
 	return f(t)
 }
@@ -433,7 +444,15 @@ type Snapshot struct {
 	*transaction
 }
 
-// FIXME: document
+// ReadTransact passes the Snapshot receiver object to the caller-provided
+// function (as a ReadTransaction), but does not handle errors or commit the
+// transaction.
+//
+// ReadTransact makes Snapshot satisfy the ReadTransactor interface, allowing
+// read-only transactional functions to be used compositionally.
+//
+// See the ReadTransactor interface for an example of using ReadTransact with
+// Transaction, Snapshot and Database objects.
 func (s Snapshot) ReadTransact(f func (ReadTransaction) (interface{}, error)) (interface{}, error) {
 	return f(s)
 }

@@ -45,12 +45,18 @@ func notifyChannel(ch *chan struct{}) {
 // A Transactor represents an object that can execute a transactional
 // function. Functions that accept a Transactor can be called with either a
 // Database or a Transaction, allowing them to be composed transactionally.
+//
+// All Transactors are also ReadTransactors, allowing them to be used in
+// read-only transactional methods.
 type Transactor interface {
 	Transact(func (Transaction) (interface{}, error)) (interface{}, error)
 	ReadTransact(func (ReadTransaction) (interface{}, error)) (interface{}, error)
 }
 
-// FIXME: document
+// A ReadTransactor represents an object that can execute a read-only
+// transactional function. Functions that accept a ReadTransactor can be called
+// with a Database, Transaction or Snapshot, allowing them to be composed
+// transactionally.
 type ReadTransactor interface {
 	ReadTransact(func (ReadTransaction) (interface{}, error)) (interface{}, error)
 }

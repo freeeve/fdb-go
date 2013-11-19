@@ -120,7 +120,7 @@ func panicToError(e *error) {
 // function (by panic or return) or the commit will cause the entire transaction
 // to be retried or, if fatal, return the error to the caller.
 //
-// When working with fdb Future objects in a transactional fucntion, you may
+// When working with fdb Future objects in a transactional function, you may
 // either explicity check and return error values from (Future).GetWithError(),
 // or call (Future).GetOrPanic(). Transact will recover a panicked fdb.Error and
 // either retry the transaction or return the error.
@@ -149,7 +149,19 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 	return d.retryable(wrapped, tr.OnError)
 }
 
-// FIXME: document
+// ReadTransact runs a caller-provided function inside a retry loop, providing
+// it with a newly created ReadTransaction. Any error during execution of the
+// caller's function (by panic or return) will cause the entire transaction to
+// be retried or, if fatal, return the error to the caller.
+//
+// When working with fdb Future objects in a read-only transactional function,
+// you may either explicity check and return error values from
+// (Future).GetWithError(), or call (Future).GetOrPanic(). ReadTransact will
+// recover a panicked fdb.Error and either retry the transaction or return the
+// error.
+//
+// See the ReadTransactor interface for an example of using ReadTransact with
+// Transaction, Snapshot and Database objects.
 func (d Database) ReadTransact(f func(ReadTransaction) (interface{}, error)) (interface{}, error) {
 	tr, e := d.CreateTransaction()
 	/* Any error here is non-retryable */
