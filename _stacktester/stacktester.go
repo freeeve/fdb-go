@@ -259,10 +259,11 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		}
 		sm.tr.Commit().GetOrPanic()
 	case op == "GET":
-		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 			sm.store(idx, rtr.Get(fdb.Key(sm.waitAndPop().item.([]byte))))
 			return nil, nil
 		})
+		if e != nil { panic(e) }
 	case op == "COMMIT":
 		sm.store(idx, sm.tr.Commit())
 	case op == "RESET":
@@ -285,10 +286,11 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		sm.store(idx, []byte("GOT_COMMITTED_VERSION"))
 	case op == "GET_KEY":
 		sel := sm.popSelector()
-		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 			sm.store(idx, rtr.GetKey(sel))
 			return nil, nil
 		})
+		if e != nil { panic(e) }
 	case strings.HasPrefix(op, "GET_RANGE"):
 		var r fdb.Range
 
@@ -302,10 +304,11 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		}
 
 		ro := sm.popRangeOptions()
-		rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
+		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 			sm.pushRange(idx, rtr.GetRange(r, ro).GetSliceOrPanic())
 			return nil, nil
 		})
+		if e != nil { panic(e) }
 	case strings.HasPrefix(op, "CLEAR_RANGE"):
 		var er fdb.ExactRange
 
