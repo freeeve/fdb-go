@@ -159,8 +159,8 @@ func (d Database) Options() DatabaseOptions {
 	return DatabaseOptions{d.database}
 }
 
-// LocalityGetBoundaryKeys returns a slice of keys that fall within the range
-// where each key is located at the start of a contiguous range stored on a
+// LocalityGetBoundaryKeys returns a slice of keys that fall within the provided
+// range. Each key is located at the start of a contiguous range stored on a
 // single server.
 //
 // If limit is non-zero, only the first limit keys will be returned. In large
