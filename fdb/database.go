@@ -81,6 +81,39 @@ func (d Database) CreateTransaction() (Transaction, error) {
 	return Transaction{t}, nil
 }
 
+func (d Database) retryable(wrapped func() (interface{}, error), onError func(Error) FutureNil) (ret interface{}, e error) {
+	for {
+		ret, e = wrapped()
+
+		/* No error means success! */
+		if e == nil {
+			return
+		}
+
+		ep, ok := e.(Error)
+		if ok {
+			e = onError(ep).GetWithError()
+		}
+
+		/* If OnError returns an error, then it's not
+		/* retryable; otherwise take another pass at things */
+		if e != nil {
+			return
+		}
+	}
+}
+
+func panicToError(e *error) {
+	if r := recover(); r != nil {
+		fe, ok := r.(Error)
+		if ok {
+			*e = fe
+		} else {
+			panic(r)
+		}
+	}
+}
+
 // Transact runs a caller-provided function inside a retry loop, providing it
 // with a newly created transaction. After the function returns, the transaction
 // will be committed automatically. Any error during execution of the caller's
@@ -94,63 +127,43 @@ func (d Database) CreateTransaction() (Transaction, error) {
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
-func (d Database) Transact(f func(Transaction) (interface{}, error)) (ret interface{}, e error) {
+func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{}, error) {
 	tr, e := d.CreateTransaction()
 	/* Any error here is non-retryable */
 	if e != nil {
-		return
+		return nil, e
 	}
 
-	wrapped := func() {
-		defer func() {
-			if r := recover(); r != nil {
-				switch r := r.(type) {
-				case Error:
-					e = r
-				default:
-					panic(r)
-				}
-			}
-		}()
+	wrapped := func() (ret interface{}, e error) {
+		defer panicToError(&e)
 
 		ret, e = f(tr)
 
-		if e != nil {
-			return
-		}
-
-		e = tr.Commit().GetWithError()
-	}
-
-	for {
-		wrapped()
-
-		/* No error means success! */
 		if e == nil {
-			return
+			e = tr.Commit().GetWithError()
 		}
 
-		switch ep := e.(type) {
-		case Error:
-			e = tr.OnError(ep).GetWithError()
-		}
-
-		/* If OnError returns an error, then it's not
-		/* retryable; otherwise take another pass at things */
-		if e != nil {
-			return
-		}
+		return
 	}
+
+	return d.retryable(wrapped, tr.OnError)
 }
 
 // FIXME: document
 func (d Database) ReadTransact(f func(ReadTransaction) (interface{}, error)) (interface{}, error) {
 	tr, e := d.CreateTransaction()
+	/* Any error here is non-retryable */
 	if e != nil {
 		return nil, e
 	}
 
-	return f(tr)
+	wrapped := func() (ret interface{}, e error) {
+		defer panicToError(&e)
+
+		return f(tr)
+	}
+
+	return d.retryable(wrapped, tr.OnError)
 }
 
 // Options returns a DatabaseOptions instance suitable for setting options
