@@ -26,28 +26,28 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb"
 )
 
-func setOne(t fdb.Transactor, key []byte, value []byte) {
-	fmt.Printf("setOne got:  %T\n", t)
-	t.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		// We don't actually call tr.Set here to avoid mutating a real database.
-		// tr.Set(key, value)
-		return nil, nil
-	})
-}
-
-func setMany(t fdb.Transactor, value []byte, keys ...[]byte) {
-	fmt.Printf("setMany got: %T\n", t)
-	t.Transact(func(tr fdb.Transaction) (interface{}, error) {
-		for _, key := range(keys) {
-			setOne(tr, key, value)
-		}
-		return nil, nil
-	})
-}
-
 func ExampleTransactor() {
 	_ = fdb.APIVersion(200)
 	db, _ := fdb.OpenDefault()
+
+	setOne := func(t fdb.Transactor, key []byte, value []byte) {
+		fmt.Printf("setOne got:  %T\n", t)
+		t.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			// We don't actually call tr.Set here to avoid mutating a real database.
+			// tr.Set(key, value)
+			return nil, nil
+		})
+	}
+
+	setMany := func(t fdb.Transactor, value []byte, keys ...[]byte) {
+		fmt.Printf("setMany got: %T\n", t)
+		t.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			for _, key := range(keys) {
+				setOne(tr, key, value)
+			}
+			return nil, nil
+		})
+	}
 
 	fmt.Printf("Calling setOne with a database:\n")
 	setOne(db, []byte("foo"), []byte("bar"))
@@ -63,4 +63,8 @@ func ExampleTransactor() {
 	// setOne got:  fdb.Transaction
 	// setOne got:  fdb.Transaction
 	// setOne got:  fdb.Transaction
+}
+
+func ExampleReadTransactor() {
+	// FIXME: implement
 }
