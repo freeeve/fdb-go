@@ -5,7 +5,7 @@
 
 // To regenerate this file, from the top level of an fdb-go repository checkout,
 // run:
-// $ go run translate_fdb_options.go < /usr/include/foundationdb/fdb.options > fdb/generated.go
+// $ go run _util/translate_fdb_options.go < /usr/include/foundationdb/fdb.options > fdb/generated.go
 
 package fdb
 
