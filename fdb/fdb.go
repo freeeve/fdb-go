@@ -105,6 +105,9 @@ func APIVersion(version int) error {
 	defer networkMutex.Unlock()
 
 	if apiVersion != 0 {
+		if apiVersion == version {
+			return nil
+		}
 		return errAPIVersionAlreadySet
 	}
 
