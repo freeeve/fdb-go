@@ -19,7 +19,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// FIXME: document
+// Package subspace provides an implementation of FoundationDB
+// subspaces. Subspaces provide a way to define namespaces for different
+// categories of data. As such, they are a basic technique of data modeling
+// (https://foundationdb.com/documentation/data-modeling.html#subspaces-of-keys).
+// Subspaces use the ordering of tuple elements defined by the FoundationDB
+// tuple package to structure keyspace. As a best practice, API clients should
+// use at least one subspace for application data.
 package subspace
 
 import (
@@ -29,23 +35,37 @@ import (
 	"errors"
 )
 
-// FIXME: document
+// Subspace represents a well-defined region of keyspace in a FoundationDB
+// database.
 type Subspace interface {
-	// FIXME: document
+	// Sub returns a new Subspace whose prefix extends this Subspace with the
+	// encoding of the provided element(s). These elements must comply with the
+	// limitations on Tuple elements defined in the fdb.tuple package.
 	Sub(el ...interface{}) Subspace
 
-	// FIXME: document
+	// Bytes returns the literal bytes of the prefix of this subspace.
 	Bytes() []byte
 
-	// FIXME: document
+	// Pack returns the key encoding the specified Tuple with the prefix of this
+	// Subspace prepended. The Tuple must comply with the limitations on Tuple
+	// elements defined in the fdb.tuple package.
 	Pack(t tuple.Tuple) fdb.Key
-	// FIXME: document
+
+	// Unpack returns the Tuple encoded by the given key with the prefix of this
+	// Subspace removed. Unpack will return an error if the key is not in this
+	// Subspace or does not encode a well-formed Tuple.
 	Unpack(k fdb.KeyConvertible) (tuple.Tuple, error)
 
-	// FIXME: document
+	// Contains returns true if the provided key starts with the prefix of this
+	// Subspace, indicating that the Subspace logically contains the key.
 	Contains(k fdb.KeyConvertible) bool
 
+	// All Subspaces implement fdb.KeyConvertible and may be used as
+	// FoundationDB keys (corresponding to the prefix of this Subspace).
 	fdb.KeyConvertible
+
+	// All Subspaces implement fdb.ExactRange and may be used as ranges
+	// (corresponding to all keys logically in this Subspace).
 	fdb.ExactRange
 }
 
@@ -53,17 +73,18 @@ type subspace struct {
 	b []byte
 }
 
-// FIXME: document
+// AllKeys returns the Subspace corresponding to all keys in a FoundationDB
+// database.
 func AllKeys() Subspace {
 	return subspace{}
 }
 
-// FIXME: document
+// FromTuple returns a new Subspace from the provided Tuple.
 func FromTuple(t tuple.Tuple) Subspace {
 	return subspace{t.Pack()}
 }
 
-// FIXME: document
+// FromBytes returns a new Subspace from the provided bytes.
 func FromBytes(b []byte) Subspace {
 	s := make([]byte, len(b))
 	copy(s, b)
