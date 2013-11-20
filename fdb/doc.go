@@ -58,24 +58,18 @@ A basic interaction with the FoundationDB API is demonstrated below:
             log.Fatalf("Unable to open default FDB database (%v)", e)
         }
 
-        // We can perform reads or writes directly on a database...
-        e = db.Set(fdb.Key("hello"), []byte("world"))
-        if e != nil {
-            log.Fatalf("Unable to set FDB database value (%v)", e)
-        }
-
-        // or with more control inside a transaction.
-        ret, e := db.Transact(func (tr fdb.Transaction) (interface{}, error) {
-            orig := tr.Get(fdb.Key("hello")).GetOrPanic()
-            tr.Set(fdb.Key("hello"), []byte("universe"))
-            fmt.Println("Setting hello to universe...")
-            return orig, nil
+        // Database reads and writes happen inside transactions
+        ret, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+            tr.Set(fdb.Key("hello"), []byte("world"))
+            return tr.Get(fdb.Key("foo")).GetOrPanic(), nil
+            // db.Transact automatically commits (and if necessary,
+            // retries) the transaction
         })
         if e != nil {
             log.Fatalf("Unable to perform FDB transaction (%v)", e)
         }
 
-        fmt.Printf("The original greeting was to: %s\n", string(ret.([]byte)))
+        fmt.Printf("hello is now world, foo was: %s\n", string(ret.([]byte)))
     }
 
 On Panics
