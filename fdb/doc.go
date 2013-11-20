@@ -81,7 +81,7 @@ A basic interaction with the FoundationDB API is demonstrated below:
 On Panics
 
 Idiomatic Go code strongly frowns at panics that escape library/package
-boundaries, in favor or explicitly returned errors. Idiomatic FoundationDB
+boundaries, in favor of explicitly returned errors. Idiomatic FoundationDB
 client programs, however, are built around the idea of retryable
 programmer-provided transactional functions. Retryable transactions can be
 implemented using only error values:
