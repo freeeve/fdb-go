@@ -302,8 +302,8 @@ func strinc(prefix []byte) ([]byte, error) {
 }
 
 // PrefixRange returns the KeyRange describing the range of keys k such that
-// bytes.HasPrefix(k, prefix) is true. PrefixRange returns an empty range and an
-// error if prefix consists entirely of zero of more 0xFF bytes.
+// bytes.HasPrefix(k, prefix) is true. PrefixRange returns an error if prefix
+// consists entirely of zero of more 0xFF bytes.
 func PrefixRange(prefix []byte) (KeyRange, error) {
 	begin := make([]byte, len(prefix))
 	copy(begin, prefix)

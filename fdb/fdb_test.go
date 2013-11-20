@@ -23,7 +23,7 @@ package fdb_test
 
 import (
 	"github.com/FoundationDB/fdb-go/fdb"
-	"log"
+	"fmt"
 )
 
 func ExampleOpenDefault() {
@@ -31,15 +31,229 @@ func ExampleOpenDefault() {
 
 	e = fdb.APIVersion(200)
 	if e != nil {
-		log.Fatalf("Unable to set API version (%v)\n", e)
+		fmt.Printf("Unable to set API version: %v\n", e)
+		return
 	}
 
 	// OpenDefault opens the database described by the platform-specific default
 	// cluster file and the database name []byte("DB").
 	db, e := fdb.OpenDefault()
 	if e != nil {
-		log.Fatalf("Unable to open default database (%v)\n", e)
+		fmt.Printf("Unable to open default database: %v\n", e)
+		return
 	}
 
 	_ = db
+}
+
+func ExampleTransactor() {
+	e := fdb.APIVersion(200)
+	if e != nil {
+		fmt.Printf("Unable to set API version: %v\n", e)
+		return
+	}
+
+	db, e := fdb.OpenDefault()
+	if e != nil {
+		fmt.Printf("Unable to open default database: %v\n", e)
+		return
+	}
+
+	setOne := func(t fdb.Transactor, key fdb.Key, value []byte) error {
+		fmt.Printf("setOne called with:  %T\n", t)
+		_, e := t.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			// We don't actually call tr.Set here to avoid mutating a real database.
+			// tr.Set(key, value)
+			return nil, nil
+		})
+		return e
+	}
+
+	setMany := func(t fdb.Transactor, value []byte, keys ...[]byte) error {
+		fmt.Printf("setMany called with: %T\n", t)
+		_, e := t.Transact(func(tr fdb.Transaction) (interface{}, error) {
+			for _, key := range(keys) {
+				setOne(tr, key, value)
+			}
+			return nil, nil
+		})
+		return e
+	}
+
+	fmt.Println("Calling setOne with a database:")
+	e = setOne(db, []byte("foo"), []byte("bar"))
+	if e != nil {
+		fmt.Println(e)
+		return
+	}
+	fmt.Println("\nCalling setMany with a database:")
+	e = setMany(db, []byte("bar"), []byte("foo1"), []byte("foo2"), []byte("foo3"))
+	if e != nil {
+		fmt.Println(e)
+		return
+	}
+
+	// Output:
+	// Calling setOne with a database:
+	// setOne called with:  fdb.Database
+	//
+	// Calling setMany with a database:
+	// setMany called with: fdb.Database
+	// setOne called with:  fdb.Transaction
+	// setOne called with:  fdb.Transaction
+	// setOne called with:  fdb.Transaction
+}
+
+func ExampleReadTransactor() {
+	e := fdb.APIVersion(200)
+	if e != nil {
+		fmt.Printf("Unable to set API version: %v\n", e)
+		return
+	}
+
+	db, e := fdb.OpenDefault()
+	if e != nil {
+		fmt.Printf("Unable to open default database: %v\n", e)
+		return
+	}
+
+	getOne := func(rt fdb.ReadTransactor, key fdb.Key) ([]byte, error) {
+		fmt.Printf("getOne called with: %T\n", rt)
+		ret, e := rt.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+			return rtr.Get(key).GetOrPanic(), nil
+		})
+		if e != nil {
+			return nil, e
+		}
+		return ret.([]byte), nil
+	}
+
+	getTwo := func(rt fdb.ReadTransactor, key1, key2 fdb.Key) ([][]byte, error) {
+		fmt.Printf("getTwo called with: %T\n", rt)
+		ret, e := rt.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
+			r1, _ := getOne(rtr, key1)
+			r2, _ := getOne(rtr.Snapshot(), key2)
+			return [][]byte{r1, r2}, nil
+		})
+		if e != nil {
+			return nil, e
+		}
+		return ret.([][]byte), nil
+	}
+
+
+	fmt.Println("Calling getOne with a database:")
+	_, e = getOne(db, fdb.Key("foo"))
+	if e != nil {
+		fmt.Println(e)
+		return
+	}
+	fmt.Println("\nCalling getTwo with a database:")
+	_, e = getTwo(db, fdb.Key("foo"), fdb.Key("bar"))
+	if e != nil {
+		fmt.Println(e)
+		return
+	}
+
+	// Output:
+	// Calling getOne with a database:
+	// getOne called with: fdb.Database
+	//
+	// Calling getTwo with a database:
+	// getTwo called with: fdb.Database
+	// getOne called with: fdb.Transaction
+	// getOne called with: fdb.Snapshot
+}
+
+func ExamplePrefixRange() {
+	e := fdb.APIVersion(200)
+	if e != nil {
+		fmt.Printf("Unable to set API version: %v\n", e)
+		return
+	}
+
+	db, e := fdb.OpenDefault()
+	if e != nil {
+		fmt.Printf("Unable to open default database: %v\n", e)
+		return
+	}
+
+	tr, e := db.CreateTransaction()
+	if e != nil {
+		fmt.Printf("Unable to create transaction: %v\n", e)
+		return
+	}
+
+	// Clear and initialize data in this transaction. In examples we do not
+	// commit transactions to avoid mutating a real database.
+	tr.ClearRange(fdb.KeyRange{fdb.Key(""), fdb.Key{0xFF}})
+	tr.Set(fdb.Key("alpha"), []byte("1"))
+	tr.Set(fdb.Key("alphabetA"), []byte("2"))
+	tr.Set(fdb.Key("alphabetB"), []byte("3"))
+	tr.Set(fdb.Key("alphabetize"), []byte("4"))
+	tr.Set(fdb.Key("beta"), []byte("5"))
+
+	// Construct the range of all keys beginning with "alphabet". It is safe to
+	// ignore the error return from PrefixRange unless the provided prefix might
+	// consist entirely of zero or more 0xFF bytes.
+	pr, _ := fdb.PrefixRange([]byte("alphabet"))
+
+	// Read and process the range
+	kvs, e := tr.GetRange(pr, fdb.RangeOptions{}).GetSliceWithError()
+	if e != nil {
+		fmt.Printf("Unable to read range: %v\n", e)
+	}
+	for _, kv := range kvs {
+		fmt.Printf("%s: %s\n", string(kv.Key), string(kv.Value))
+	}
+
+	// Output:
+	// alphabetA: 2
+	// alphabetB: 3
+	// alphabetize: 4
+}
+
+func ExampleRangeIterator() {
+	e := fdb.APIVersion(200)
+	if e != nil {
+		fmt.Printf("Unable to set API version: %v\n", e)
+		return
+	}
+
+	db, e := fdb.OpenDefault()
+	if e != nil {
+		fmt.Printf("Unable to open default database: %v\n", e)
+		return
+	}
+
+	tr, e := db.CreateTransaction()
+	if e != nil {
+		fmt.Printf("Unable to create transaction: %v\n", e)
+		return
+	}
+
+	// Clear and initialize data in this transaction. In examples we do not
+	// commit transactions to avoid mutating a real database.
+	tr.ClearRange(fdb.KeyRange{fdb.Key(""), fdb.Key{0xFF}})
+	tr.Set(fdb.Key("apple"), []byte("foo"))
+	tr.Set(fdb.Key("cherry"), []byte("baz"))
+	tr.Set(fdb.Key("banana"), []byte("bar"))
+
+	rr := tr.GetRange(fdb.KeyRange{fdb.Key(""), fdb.Key{0xFF}}, fdb.RangeOptions{})
+	ri := rr.Iterator()
+
+	// Advance() will return true until the iterator is exhausted
+	for ri.Advance() {
+		kv, e := ri.GetNextWithError()
+		if e != nil {
+			fmt.Printf("Unable to read next value: %v\n", e)
+			return
+		}
+		fmt.Printf("%s is %s\n", kv.Key, kv.Value)
+	}
+
+	// Output:
+	// apple is foo
+	// banana is bar
+	// cherry is baz
 }
