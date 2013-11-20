@@ -43,7 +43,7 @@ type ReadTransaction interface {
 	GetRange(r Range, options RangeOptions) RangeResult
 	GetReadVersion() FutureVersion
 	GetDatabase() Database
-	LocalityGetAddressesForKey(key KeyConvertible) FutureStringArray
+	Snapshot() Snapshot
 
 	ReadTransactor
 }
@@ -431,62 +431,4 @@ func localityGetAddressesForKey(t *transaction, key KeyConvertible) FutureString
 // goroutine. The future will become ready when the read is complete.
 func (t Transaction) LocalityGetAddressesForKey(key KeyConvertible) FutureStringArray {
 	return localityGetAddressesForKey(t.transaction, key)
-}
-
-// Snapshot is a handle to a FoundationDB transaction snapshot, suitable for
-// performing snapshot reads. Snapshot reads offer a more relaxed isolation
-// level than FoundationDB's default serializable isolation, reducing
-// transaction conflicts but making it harder to reason about concurrency.
-//
-// For more information on snapshot reads, see
-// https://foundationdb.com/documentation/developer-guide.html#snapshot-reads.
-type Snapshot struct {
-	*transaction
-}
-
-// ReadTransact passes the Snapshot receiver object to the caller-provided
-// function (as a ReadTransaction), but does not handle errors or commit the
-// transaction.
-//
-// ReadTransact makes Snapshot satisfy the ReadTransactor interface, allowing
-// read-only transactional functions to be used compositionally.
-//
-// See the ReadTransactor interface for an example of using ReadTransact with
-// Transaction, Snapshot and Database objects.
-func (s Snapshot) ReadTransact(f func (ReadTransaction) (interface{}, error)) (interface{}, error) {
-	return f(s)
-}
-
-// Like (Transaction).Get(), but as a snapshot read.
-func (s Snapshot) Get(key KeyConvertible) FutureValue {
-	return s.get(key.ToFDBKey(), 1)
-}
-
-// Like (Transaction).GetKey(), but as a snapshot read.
-func (s Snapshot) GetKey(sel Selectable) FutureKey {
-	return s.getKey(sel.ToFDBKeySelector(), 1)
-}
-
-// Like (Transaction).GetRange(), but as a snapshot read.
-func (s Snapshot) GetRange(r Range, options RangeOptions) RangeResult {
-	return s.getRange(r, options, true)
-}
-
-// Like (Transaction).GetReadVersion(), but as a snapshot read.
-func (s Snapshot) GetReadVersion() FutureVersion {
-	return s.getReadVersion()
-}
-
-// GetDatabase returns a handle to the database with which this snapshot is
-// interacting.
-func (s Snapshot) GetDatabase() Database {
-	return s.transaction.db
-}
-
-// LocalityGetAddressesForKey returns the (future) public network addresses of
-// each of the storage servers responsible for storing key and its associated
-// value. The read is performed asynchronously and does not block the calling
-// goroutine. The future will become ready when the read is complete.
-func (s Snapshot) LocalityGetAddressesForKey(key KeyConvertible) FutureStringArray {
-	return localityGetAddressesForKey(s.transaction, key)
 }
