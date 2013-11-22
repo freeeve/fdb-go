@@ -42,6 +42,7 @@ func tuplePackStrings(s []string) []byte {
 type DirectoryExtension struct {
 	list []interface{}
 	index int64
+	errorIndex int64
 }
 
 func newDirectoryExtension() *DirectoryExtension {
@@ -104,13 +105,14 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 	case op == "CREATE_LAYER":
 		idx1 := sm.waitAndPop().item.(int64)
 		idx2 := sm.waitAndPop().item.(int64)
+		amp := sm.waitAndPop().item.(int64)
 		nodeSS := de.list[idx1]
 		contentSS := de.list[idx2]
 
 		if nodeSS == nil || contentSS == nil {
 			de.store(nil)
 		} else {
-			de.store(directory.NewDirectoryLayer(nodeSS.(subspace.Subspace), contentSS.(subspace.Subspace)))
+			de.store(directory.NewDirectoryLayer(nodeSS.(subspace.Subspace), contentSS.(subspace.Subspace), (amp == int64(1))))
 		}
 	case op == "CREATE_OR_OPEN":
 		tuples := sm.popTuples(1)
@@ -152,9 +154,11 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 	case op == "CHANGE":
 		i := sm.waitAndPop().item.(int64)
 		if de.list[i] == nil {
-			i = 1
+			i = de.errorIndex
 		}
 		de.index = i
+	case op == "SET_ERROR_INDEX":
+		de.errorIndex = sm.waitAndPop().item.(int64)
 	case op == "MOVE":
 		tuples := sm.popTuples(2)
 		d, e := de.cwd().Move(t, tupleToPath(tuples[0]), tupleToPath(tuples[1]))

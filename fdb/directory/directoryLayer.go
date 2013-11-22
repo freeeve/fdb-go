@@ -35,17 +35,21 @@ type DirectoryLayer struct {
 	nodeSS subspace.Subspace
 	contentSS subspace.Subspace
 
+	allowManualPrefixes bool
+
 	allocator highContentionAllocator
 	rootNode subspace.Subspace
 
 	path []string
 }
 
-func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace) DirectoryLayer {
+func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace, allowManualPrefixes bool) DirectoryLayer {
 	var dl DirectoryLayer
 
 	dl.nodeSS = nodeSS
 	dl.contentSS = contentSS
+
+	dl.allowManualPrefixes = allowManualPrefixes
 
 	dl.rootNode = dl.nodeSS.Sub(dl.nodeSS.Bytes())
 	dl.allocator = newHCA(dl.rootNode.Sub([]byte("hca")))
@@ -60,6 +64,14 @@ func (dl DirectoryLayer) getLayerForPath(path []string) DirectoryLayer {
 func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate, allowOpen bool) (DirectorySubspace, error) {
 	if e := dl.checkVersion(rtr, nil); e != nil {
 		return nil, e
+	}
+
+	if prefix != nil && !dl.allowManualPrefixes {
+		if len(dl.path) == 0 {
+			return nil, errors.New("cannot specify a prefix unless manual prefixes are enabled")
+		} else {
+			return nil, errors.New("cannot specify a prefix in a partition")
+		}
 	}
 
 	if len(path) == 0 {
@@ -102,14 +114,23 @@ func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transacti
 			return nil, fmt.Errorf("unable to allocate new directory prefix (%s)", e.Error())
 		}
 		prefix = newss.Bytes()
-	}
 
-	pf, e := dl.isPrefixFree(*tr, prefix)
-	if e != nil {
-		return nil, e
-	}
-	if !pf {
-		return nil, errors.New("the given prefix is already in use")
+		pr, e := fdb.PrefixRange(prefix)
+		if !isRangeEmpty(rtr, pr) {
+			return nil, fmt.Errorf("the database has keys stored at the prefix chosen by the automatic prefix allocator: %v", prefix)
+		}
+
+		pf, e := dl.isPrefixFree(rtr.Snapshot(), prefix)
+		if e != nil { return nil, e }
+		if !pf {
+			return nil, errors.New("the directory layer has manually allocated prefixes that conflict with the automatic prefix allocator")
+		}
+	} else {
+		pf, e := dl.isPrefixFree(rtr, prefix)
+		if e != nil { return nil, e }
+		if !pf {
+			return nil, errors.New("the given prefix is already in use")
+		}
 	}
 
 	var parentNode subspace.Subspace
@@ -399,14 +420,14 @@ func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 	return ret
 }
 
-func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) (subspace.Subspace, error) {
+func (dl DirectoryLayer) nodeContainingKey(rtr fdb.ReadTransaction, key []byte) (subspace.Subspace, error) {
 	if bytes.HasPrefix(key, dl.nodeSS.Bytes()) {
 		return dl.rootNode, nil
 	}
 
 	kr := fdb.KeyRange{dl.nodeSS.BeginKey(), fdb.Key(append(dl.nodeSS.Pack(tuple.Tuple{key}), 0x00))}
 
-	kvs := tr.GetRange(kr, fdb.RangeOptions{Reverse:true, Limit:1}).GetSliceOrPanic()
+	kvs := rtr.GetRange(kr, fdb.RangeOptions{Reverse:true, Limit:1}).GetSliceOrPanic()
 	if len(kvs) == 1 {
 		pp, e := dl.nodeSS.Unpack(kvs[0].Key)
 		if e != nil {
@@ -421,12 +442,12 @@ func (dl DirectoryLayer) nodeContainingKey(tr fdb.Transaction, key []byte) (subs
 	return nil, nil
 }
 
-func (dl DirectoryLayer) isPrefixFree(tr fdb.Transaction, prefix []byte) (bool, error) {
+func (dl DirectoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (bool, error) {
 	if len(prefix) == 0 {
 		return false, nil
 	}
 
-	nck, e := dl.nodeContainingKey(tr, prefix)
+	nck, e := dl.nodeContainingKey(rtr, prefix)
 	if e != nil {
 		return false, e
 	}
@@ -439,8 +460,7 @@ func (dl DirectoryLayer) isPrefixFree(tr fdb.Transaction, prefix []byte) (bool, 
 		return false, e
 	}
 
-	kvs := tr.GetRange(fdb.KeyRange{fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.BeginKey()})), fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.EndKey()}))}, fdb.RangeOptions{Limit:1}).GetSliceOrPanic()
-	if len(kvs) > 0 {
+	if !isRangeEmpty(rtr, fdb.KeyRange{fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.BeginKey()})), fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.EndKey()}))}) {
 		return false, nil
 	}
 
@@ -509,7 +529,7 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 		nssb := make([]byte, len(pb) + 1)
 		copy(nssb, pb)
 		nssb[len(pb)] = 0xFE
-		ndl := NewDirectoryLayer(subspace.FromBytes(nssb), ss)
+		ndl := NewDirectoryLayer(subspace.FromBytes(nssb), ss, false)
 		ndl.path = newPath
 		return DirectoryPartition{ndl, dl}, nil
 	} else {
@@ -538,4 +558,10 @@ func (dl DirectoryLayer) partitionSubpath(lpath, rpath []string) []string {
 	copy(r, lpath[len(dl.path):])
 	copy(r[len(lpath) - len(dl.path):], rpath)
 	return r
+}
+
+func isRangeEmpty(rtr fdb.ReadTransaction, r fdb.Range) bool {
+	kvs := rtr.GetRange(r, fdb.RangeOptions{Limit: 1}).GetSliceOrPanic()
+
+	return len(kvs) == 0
 }

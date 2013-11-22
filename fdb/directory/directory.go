@@ -82,7 +82,7 @@ func moveTo(t fdb.Transactor, dl DirectoryLayer, path, newAbsolutePath []string)
 	return dl.Move(t, path[partition_len:], newAbsolutePath[partition_len:])
 }
 
-var root = NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys())
+var root = NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), false)
 
 func Root() Directory {
 	return root
