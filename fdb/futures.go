@@ -226,7 +226,7 @@ type futureNil struct {
 }
 
 func (f futureNil) GetWithError() error {
-	fdb_future_block_until_ready(f.ptr)
+	f.BlockUntilReady()
 	if err := C.fdb_future_get_error(f.ptr); err != 0 {
 		return Error{int(err)}
 	}
@@ -257,7 +257,7 @@ func stringRefToSlice(ptr uintptr) []byte {
 }
 
 func (f futureKeyValueArray) GetWithError() ([]KeyValue, bool, error) {
-	fdb_future_block_until_ready(f.ptr)
+	f.BlockUntilReady()
 
 	var kvs *C.void
 	var count C.int
@@ -302,7 +302,7 @@ type futureVersion struct {
 }
 
 func (f futureVersion) GetWithError() (int64, error) {
-	fdb_future_block_until_ready(f.ptr)
+	f.BlockUntilReady()
 
 	var ver C.int64_t
 	if err := C.fdb_future_get_version(f.ptr, &ver); err != 0 {
@@ -342,7 +342,7 @@ type futureStringArray struct {
 }
 
 func (f futureStringArray) GetWithError() ([]string, error) {
-	fdb_future_block_until_ready(f.ptr)
+	f.BlockUntilReady()
 
 	var strings **C.char
 	var count C.int
