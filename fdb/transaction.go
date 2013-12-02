@@ -27,10 +27,6 @@ package fdb
 */
 import "C"
 
-import (
-	"runtime"
-)
-
 // A ReadTransaction represents an object that can asynchronously read from a
 // FoundationDB database. Transaction and Snapshot both satisfy the
 // ReadTransaction interface.
@@ -163,12 +159,6 @@ func (t Transaction) Snapshot() Snapshot {
 	return Snapshot{t.transaction}
 }
 
-func makeFutureNil(fp *C.FDBFuture) FutureNil {
-	f := &future{fp}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return FutureNil{f}
-}
-
 // OnError determines whether an error returned by a Transaction method is
 // retryable. Waiting on the returned future will return the same error when
 // fatal, or return nil (after blocking the calling goroutine for a suitable
@@ -177,7 +167,7 @@ func makeFutureNil(fp *C.FDBFuture) FutureNil {
 // Typical code will not use OnError directly. (Database).Transact() uses
 // OnError internally to implement a correct retry loop.
 func (t Transaction) OnError(e Error) FutureNil {
-	return makeFutureNil(C.fdb_transaction_on_error(t.ptr, C.fdb_error_t(e.Code)))
+	return &futureNil{newFuture(C.fdb_transaction_on_error(t.ptr, C.fdb_error_t(e.Code)))}
 }
 
 // Commit attempts to commit the modifications made in the transaction to the
@@ -191,7 +181,7 @@ func (t Transaction) OnError(e Error) FutureNil {
 // see
 // https://foundationdb.com/documentation/developer-guide.html#developer-guide-unknown-results.
 func (t Transaction) Commit() FutureNil {
-	return makeFutureNil(C.fdb_transaction_commit(t.ptr))
+	return &futureNil{newFuture(C.fdb_transaction_commit(t.ptr))}
 }
 
 // Watch creates a watch and returns a FutureNil that will become ready when the
@@ -219,13 +209,11 @@ func (t Transaction) Commit() FutureNil {
 // cancelled by calling (FutureNil).Cancel() on its returned future.
 func (t Transaction) Watch(key KeyConvertible) FutureNil {
 	kb := key.ToFDBKey()
-	return makeFutureNil(C.fdb_transaction_watch(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))
+	return &futureNil{newFuture(C.fdb_transaction_watch(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 
 func (t *transaction) get(key []byte, snapshot int) FutureValue {
-	f := &future{C.fdb_transaction_get(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(snapshot))}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return FutureValue{&futureValue{future: f}}
+	return &futureValue{future: newFuture(C.fdb_transaction_get(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(snapshot)))}
 }
 
 // Get returns the (future) value associated with the specified key. The read is
@@ -240,9 +228,8 @@ func (t *transaction) doGetRange(r Range, options RangeOptions, snapshot bool, i
 	bkey := begin.Key.ToFDBKey()
 	end := r.EndKeySelector()
 	ekey := end.Key.ToFDBKey()
-	f := &future{C.fdb_transaction_get_range(t.ptr, byteSliceToPtr(bkey), C.int(len(bkey)), C.fdb_bool_t(boolToInt(begin.OrEqual)), C.int(begin.Offset), byteSliceToPtr(ekey), C.int(len(ekey)), C.fdb_bool_t(boolToInt(end.OrEqual)), C.int(end.Offset), C.int(options.Limit), C.int(0), C.FDBStreamingMode(options.Mode-1), C.int(iteration), C.fdb_bool_t(boolToInt(snapshot)), C.fdb_bool_t(boolToInt(options.Reverse)))}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return futureKeyValueArray{f}
+
+	return futureKeyValueArray{newFuture(C.fdb_transaction_get_range(t.ptr, byteSliceToPtr(bkey), C.int(len(bkey)), C.fdb_bool_t(boolToInt(begin.OrEqual)), C.int(begin.Offset), byteSliceToPtr(ekey), C.int(len(ekey)), C.fdb_bool_t(boolToInt(end.OrEqual)), C.int(end.Offset), C.int(options.Limit), C.int(0), C.FDBStreamingMode(options.Mode-1), C.int(iteration), C.fdb_bool_t(boolToInt(snapshot)), C.fdb_bool_t(boolToInt(options.Reverse))))}
 }
 
 func (t *transaction) getRange(r Range, options RangeOptions, snapshot bool) RangeResult {
@@ -266,9 +253,7 @@ func (t Transaction) GetRange(r Range, options RangeOptions) RangeResult {
 }
 
 func (t *transaction) getReadVersion() FutureVersion {
-	f := &future{C.fdb_transaction_get_read_version(t.ptr)}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return FutureVersion{f}
+	return &futureVersion{newFuture(C.fdb_transaction_get_read_version(t.ptr))}
 }
 
 // (Infrequently used) GetReadVersion returns the (future) transaction read version. The read is
@@ -337,9 +322,7 @@ func boolToInt(b bool) int {
 
 func (t *transaction) getKey(sel KeySelector, snapshot int) FutureKey {
 	key := sel.Key.ToFDBKey()
-	f := &future{C.fdb_transaction_get_key(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(boolToInt(sel.OrEqual)), C.int(sel.Offset), C.fdb_bool_t(snapshot))}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return FutureKey{&futureKey{future: f}}
+	return &futureKey{future: newFuture(C.fdb_transaction_get_key(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(boolToInt(sel.OrEqual)), C.int(sel.Offset), C.fdb_bool_t(snapshot)))}
 }
 
 // GetKey returns the future key referenced by the provided key selector. The
@@ -419,10 +402,7 @@ func (t Transaction) Options() TransactionOptions {
 
 func localityGetAddressesForKey(t *transaction, key KeyConvertible) FutureStringArray {
 	kb := key.ToFDBKey()
-
-	f := &future{C.fdb_transaction_get_addresses_for_key(t.ptr, byteSliceToPtr(kb), C.int(len(kb)))}
-	runtime.SetFinalizer(f, (*future).destroy)
-	return FutureStringArray{f}
+	return &futureStringArray{newFuture(C.fdb_transaction_get_addresses_for_key(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 
 // LocalityGetAddressesForKey returns the (future) public network addresses of

@@ -39,7 +39,7 @@ import (
 /* (https://code.google.com/p/go-wiki/wiki/cgo#Global_functions) */
 //export notifyChannel
 func notifyChannel(ch *chan struct{}) {
-	*ch <- struct{}{}
+	close(*ch)
 }
 
 // A Transactor represents an object that can execute a transactional

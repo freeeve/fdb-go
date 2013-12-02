@@ -31,7 +31,7 @@ type node struct {
 	subspace subspace.Subspace
 	path []string
 	targetPath []string
-	_layer *fdb.FutureValue
+	_layer fdb.FutureValue
 }
 
 func (n *node) exists() bool {
@@ -51,10 +51,10 @@ func (n *node) prefetchMetadata(rtr fdb.ReadTransaction) *node {
 func (n *node) layer(rtr fdb.ReadTransaction) fdb.FutureValue {
 	if n._layer == nil {
 		fv := rtr.Get(n.subspace.Sub([]byte("layer")))
-		n._layer = &fv
+		n._layer = fv
 	}
 
-	return *(n._layer)
+	return n._layer
 }
 
 func (n *node) isInPartition(tr *fdb.Transaction, includeEmptySubpath bool) bool {
