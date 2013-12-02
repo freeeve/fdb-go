@@ -224,7 +224,7 @@ func (t Tuple) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 // FIXME: document
 func (t Tuple) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
 	b, e := t.FDBRangeKeys()
-	return b.FDBKey(), e.FDBKey()
+	return fdb.FirstGreaterOrEqual(b), fdb.FirstGreaterOrEqual(e)
 }
 
 func concat(a []byte, b ...byte) []byte {

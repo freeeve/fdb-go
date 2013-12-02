@@ -125,7 +125,7 @@ func (s subspace) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 
 func (s subspace) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
 	begin, end := s.FDBRangeKeys()
-	return begin.FDBKey(), end.FDBKey()
+	return fdb.FirstGreaterOrEqual(begin), fdb.FirstGreaterOrEqual(end)
 }
 
 func concat(a []byte, b ...byte) []byte {

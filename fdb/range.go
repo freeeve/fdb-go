@@ -64,8 +64,9 @@ type RangeOptions struct {
 // FoundationDB API, and the key selectors are resolved to specific keys in the
 // database while satisfying the read.
 type Range interface {
-	// FIXME: document
-	FDBRangeKeySelectors() (Selectable, Selectable)
+	// FDBRangeKeySelectors returns a pair of key selectors that describe the
+	// beginning and end of a range.
+	FDBRangeKeySelectors() (begin, end Selectable)
 }
 
 // ExactRange is the interface that describes all keys between a begin
@@ -77,12 +78,13 @@ type Range interface {
 // Any object that implements ExactRange also implements Range, and may be used
 // accordingly.
 type ExactRange interface {
-	// FIXME: document
-	FDBRangeKeys() (KeyConvertible, KeyConvertible)
+	// FDBRangeKeys returns a pair of keys that describe the beginning and end
+	// of a range.
+	FDBRangeKeys() (begin, end KeyConvertible)
 
 	// An object that implements ExactRange must also implement Range
 	// (logically, by returning FirstGreaterOrEqual() of the keys returned by
-	// FDBRangeKeys.
+	// FDBRangeKeys).
 	Range
 }
 
@@ -93,12 +95,14 @@ type KeyRange struct {
 	Begin, End KeyConvertible
 }
 
+// FDBRangeKeys allows KeyRange to satisfy the ExactRange interface.
 func (kr KeyRange) FDBRangeKeys() (KeyConvertible, KeyConvertible) {
 	return kr.Begin, kr.End
 }
 
+// FDBRangeKeySelectors allows KeyRange to satisfy the Range interface.
 func (kr KeyRange) FDBRangeKeySelectors() (Selectable, Selectable) {
-	return kr.Begin.FDBKey(), kr.End.FDBKey()
+	return FirstGreaterOrEqual(kr.Begin), FirstGreaterOrEqual(kr.End)
 }
 
 // SelectorRange implements Range directly from a pair of Selectable
@@ -108,6 +112,7 @@ type SelectorRange struct {
 	Begin, End Selectable
 }
 
+// FDBRangeKeySelectors allows SelectorRange to satisfy the Range interface.
 func (sr SelectorRange) FDBRangeKeySelectors() (Selectable, Selectable) {
 	return sr.Begin, sr.End
 }

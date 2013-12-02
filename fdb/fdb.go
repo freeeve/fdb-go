@@ -277,19 +277,12 @@ type KeyConvertible interface {
 }
 
 // Key represents a FoundationDB key, a lexicographically-ordered sequence of
-// bytes. Key implements the KeyConvertible and Selectable interfaces.
+// bytes. Key implements the KeyConvertible interface.
 type Key []byte
 
 // FDBKey allows Key to (trivially) satisfy the KeyConvertible interface.
 func (k Key) FDBKey() Key {
 	return k
-}
-
-// FDBKeySelector allows Key to satisfy the Selectable interface. The returned
-// selector describes the first key in the database lexicographically greater
-// than or equal to k.
-func (k Key) FDBKeySelector() KeySelector {
-	return FirstGreaterOrEqual(k)
 }
 
 func panicToError(e *error) {
