@@ -123,7 +123,7 @@ type futureValue struct {
 	o sync.Once
 }
 
-func (f futureValue) GetWithError() ([]byte, error) {
+func (f *futureValue) GetWithError() ([]byte, error) {
 	f.o.Do(func() {
 		var present C.fdb_bool_t
 		var value *C.uint8_t
@@ -145,7 +145,7 @@ func (f futureValue) GetWithError() ([]byte, error) {
 	return f.v, f.e
 }
 
-func (f futureValue) GetOrPanic() []byte {
+func (f *futureValue) GetOrPanic() []byte {
 	val, err := f.GetWithError()
 	if err != nil {
 		panic(err)
@@ -177,7 +177,7 @@ type futureKey struct {
 	o sync.Once
 }
 
-func (f futureKey) GetWithError() (Key, error) {
+func (f *futureKey) GetWithError() (Key, error) {
 	f.o.Do(func() {
 		var value *C.uint8_t
 		var length C.int
@@ -196,7 +196,7 @@ func (f futureKey) GetWithError() (Key, error) {
 	return f.k, f.e
 }
 
-func (f futureKey) GetOrPanic() Key {
+func (f *futureKey) GetOrPanic() Key {
 	val, err := f.GetWithError()
 	if err != nil {
 		panic(err)

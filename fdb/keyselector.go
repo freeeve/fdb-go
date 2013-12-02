@@ -25,7 +25,7 @@ package fdb
 // a key in FoundationDB API calls. The fdb.KeySelector and fdb.Key types
 // satisfy the Selectable interface.
 type Selectable interface {
-	ToFDBKeySelector() KeySelector
+	FDBKeySelector() KeySelector
 }
 
 // KeySelector represents a description of a key in a FoundationDB database. A
@@ -41,7 +41,7 @@ type KeySelector struct {
 	Offset int
 }
 
-func (ks KeySelector) ToFDBKeySelector() KeySelector {
+func (ks KeySelector) FDBKeySelector() KeySelector {
 	return ks
 }
 

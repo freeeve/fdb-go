@@ -273,21 +273,32 @@ func byteSliceToPtr(b []byte) *C.uint8_t {
 // KeyConvertible is the interface implemented by types which may be used as
 // FoundationDB Keys. The fdb.Key type satisfies the KeyConvertible interface.
 type KeyConvertible interface {
-	ToFDBKey() Key
+	FDBKey() Key
 }
 
 // Key represents a FoundationDB key, a lexicographically-ordered sequence of
 // bytes. Key implements the KeyConvertible and Selectable interfaces.
 type Key []byte
 
-// ToFDBKey allows Key to (trivially) satisfy the KeyConvertible interface.
-func (k Key) ToFDBKey() Key {
+// FDBKey allows Key to (trivially) satisfy the KeyConvertible interface.
+func (k Key) FDBKey() Key {
 	return k
 }
 
-// ToFDBKeySelector allows Key to satisfy the Selectable interface. The returned
+// FDBKeySelector allows Key to satisfy the Selectable interface. The returned
 // selector describes the first key in the database lexicographically greater
 // than or equal to k.
-func (k Key) ToFDBKeySelector() KeySelector {
+func (k Key) FDBKeySelector() KeySelector {
 	return FirstGreaterOrEqual(k)
+}
+
+func panicToError(e *error) {
+	if r := recover(); r != nil {
+		fe, ok := r.(Error)
+		if ok {
+			*e = fe
+		} else {
+			panic(r)
+		}
+	}
 }

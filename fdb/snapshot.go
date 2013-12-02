@@ -41,8 +41,11 @@ type Snapshot struct {
 //
 // See the ReadTransactor interface for an example of using ReadTransact with
 // Transaction, Snapshot and Database objects.
-func (s Snapshot) ReadTransact(f func (ReadTransaction) (interface{}, error)) (interface{}, error) {
-	return f(s)
+func (s Snapshot) ReadTransact(f func (ReadTransaction) (interface{}, error)) (r interface{}, e error) {
+	defer panicToError(&e)
+
+	r, e = f(s)
+	return
 }
 
 // Snapshot returns the receiver and allows Snapshot to satisfy the
@@ -53,13 +56,13 @@ func (s Snapshot) Snapshot() Snapshot {
 
 // Get is equivalent to (Transaction).Get(), performed as a snapshot read.
 func (s Snapshot) Get(key KeyConvertible) FutureValue {
-	return s.get(key.ToFDBKey(), 1)
+	return s.get(key.FDBKey(), 1)
 }
 
 // GetKey is equivalent to (Transaction).GetKey(), performed but as a snapshot
 // read.
 func (s Snapshot) GetKey(sel Selectable) FutureKey {
-	return s.getKey(sel.ToFDBKeySelector(), 1)
+	return s.getKey(sel.FDBKeySelector(), 1)
 }
 
 // GetRange is equivalent to (Transaction).GetRange(), performed but as a

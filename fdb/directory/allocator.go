@@ -78,7 +78,7 @@ func (hca highContentionAllocator) allocate(tr fdb.Transaction, s subspace.Subsp
 
 	if (count + 1) * 2 >= window {
 		// Advance the window
-		tr.ClearRange(fdb.KeyRange{hca.counters, append(hca.counters.Sub(start).ToFDBKey(), 0x00)})
+		tr.ClearRange(fdb.KeyRange{hca.counters, append(hca.counters.Sub(start).FDBKey(), 0x00)})
 		start += window
 		tr.ClearRange(fdb.KeyRange{hca.recent, hca.recent.Sub(start)})
 		window = windowSize(start)

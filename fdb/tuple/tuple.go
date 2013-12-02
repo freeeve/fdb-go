@@ -98,7 +98,7 @@ func encodeInt(buf *bytes.Buffer, i int64) {
 // Pack returns a new byte slice encoding the provided tuple. Pack will panic if
 // the tuple contains an element of any type other than []byte,
 // fdb.KeyConvertible, string, int64, int or nil.
-func (t Tuple) Pack() []byte {
+func (t Tuple) Pack() fdb.Key {
 	buf := new(bytes.Buffer)
 
 	for i, e := range(t) {
@@ -111,8 +111,8 @@ func (t Tuple) Pack() []byte {
 			encodeInt(buf, int64(e))
 		case []byte:
 			encodeBytes(buf, 0x01, e)
-		case fdb.Key:
-			encodeBytes(buf, 0x01, []byte(e))
+		case fdb.KeyConvertible:
+			encodeBytes(buf, 0x01, []byte(e.FDBKey()))
 		case string:
 			encodeBytes(buf, 0x02, []byte(e))
 		default:
@@ -120,7 +120,7 @@ func (t Tuple) Pack() []byte {
 		}
 	}
 
-	return buf.Bytes()
+	return fdb.Key(buf.Bytes())
 }
 
 func findTerminator(b []byte) int {
@@ -179,9 +179,10 @@ func decodeInt(b []byte) (int64, int) {
 
 // Unpack returns the tuple encoded by the provided byte slice, or an error if
 // the byte slice did not correctly encode a FoundationDB tuple.
-func Unpack(b []byte) (Tuple, error) {
+func Unpack(k fdb.KeyConvertible) (Tuple, error) {
 	var t Tuple
 
+	b := k.FDBKey()
 	var i int
 
 	for i < len(b) {
@@ -209,20 +210,26 @@ func Unpack(b []byte) (Tuple, error) {
 	return t, nil
 }
 
-// Range returns the KeyRange that describes the keys encoding tuples that
-// strictly begin with t (that is, all tuples of greater length than t of which
-// t is a prefix). Range will panic if the tuple contains an element of any type
-// other than []byte, fdb.KeyConvertible, string, int64, int, or nil.
-func (t Tuple) Range() fdb.KeyRange {
+// FIXME: document
+func (t Tuple) FDBKey() fdb.Key {
+	return t.Pack()
+}
+
+// FIXME: document
+func (t Tuple) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 	p := t.Pack()
+	return fdb.Key(concat(p, 0x00)), fdb.Key(concat(p, 0xFF))
+}
 
-	begin := make([]byte, len(p) + 1)
-	copy(begin, p)
-	// Last element of begin is now 0x00
+// FIXME: document
+func (t Tuple) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
+	b, e := t.FDBRangeKeys()
+	return b.FDBKey(), e.FDBKey()
+}
 
-	end := make([]byte, len(p) + 1)
-	copy(end, p)
-	end[len(p)] = 0xFF
-
-	return fdb.KeyRange{fdb.Key(begin), fdb.Key(end)}
+func concat(a []byte, b ...byte) []byte {
+	r := make([]byte, len(a) + len(b))
+	copy(r, a)
+	copy(r[len(a):], b)
+	return r
 }

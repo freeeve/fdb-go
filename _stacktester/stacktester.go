@@ -48,7 +48,7 @@ func (sm *StackMachine) waitAndPop() (ret stackEntry) {
 		if r := recover(); r != nil {
 			switch r := r.(type) {
 			case fdb.Error:
-				ret.item = tuple.Tuple{[]byte("ERROR"), []byte(fmt.Sprintf("%d", r.Code))}.Pack()
+				ret.item = []byte(tuple.Tuple{[]byte("ERROR"), []byte(fmt.Sprintf("%d", r.Code))}.Pack())
 			default:
 				panic(r)
 			}
@@ -115,7 +115,7 @@ func (sm *StackMachine) pushRange(idx int, sl []fdb.KeyValue) {
 		t = append(t, kv.Value)
 	}
 
-	sm.store(idx, t.Pack())
+	sm.store(idx, []byte(t.Pack()))
 }
 
 func (sm *StackMachine) store(idx int, item interface{}) {
@@ -161,7 +161,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		if r := recover(); r != nil {
 			switch r := r.(type) {
 			case fdb.Error:
-				sm.store(idx, tuple.Tuple{[]byte("ERROR"), []byte(fmt.Sprintf("%d", r.Code))}.Pack())
+				sm.store(idx, []byte(tuple.Tuple{[]byte("ERROR"), []byte(fmt.Sprintf("%d", r.Code))}.Pack()))
 			default:
 				panic(r)
 			}
@@ -329,14 +329,14 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		for i := 0; i < int(count); i++ {
 			t = append(t, sm.waitAndPop().item)
 		}
-		sm.store(idx, t.Pack())
+		sm.store(idx, []byte(t.Pack()))
 	case op == "TUPLE_UNPACK":
-		t, e := tuple.Unpack(sm.waitAndPop().item.([]byte))
+		t, e := tuple.Unpack(fdb.Key(sm.waitAndPop().item.([]byte)))
 		if e != nil {
 			panic(e)
 		}
 		for _, el := range(t) {
-			sm.store(idx, tuple.Tuple{el}.Pack())
+			sm.store(idx, []byte(tuple.Tuple{el}.Pack()))
 		}
 	case op == "TUPLE_RANGE":
 		var t tuple.Tuple
@@ -344,9 +344,9 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		for i := 0; i < int(count); i++ {
 			t = append(t, sm.waitAndPop().item)
 		}
-		kr := t.Range()
-		sm.store(idx, kr.Begin)
-		sm.store(idx, kr.End)
+		bk, ek := t.FDBRangeKeys()
+		sm.store(idx, []byte(bk.FDBKey()))
+		sm.store(idx, []byte(ek.FDBKey()))
 	case op == "START_THREAD":
 		newsm := newStackMachine(sm.waitAndPop().item.([]byte), verbose, sm.de)
 		sm.threads.Add(1)
@@ -429,10 +429,8 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 }
 
 func (sm *StackMachine) Run() {
-	er := tuple.Tuple{sm.prefix}.Range()
-
 	r, e := db.Transact(func (tr fdb.Transaction) (interface{}, error) {
-		return tr.GetRange(er, fdb.RangeOptions{}).GetSliceOrPanic(), nil
+		return tr.GetRange(tuple.Tuple{sm.prefix}, fdb.RangeOptions{}).GetSliceOrPanic(), nil
 	})
 	if e != nil {
 		panic(e)
@@ -441,7 +439,7 @@ func (sm *StackMachine) Run() {
 	instructions := r.([]fdb.KeyValue)
 
 	for i, kv := range(instructions) {
-		inst, _ := tuple.Unpack(kv.Value)
+		inst, _ := tuple.Unpack(fdb.Key(kv.Value))
 
 		if sm.verbose {
 			fmt.Printf("Instruction %d\n", i)

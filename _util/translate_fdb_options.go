@@ -115,7 +115,7 @@ func writeMutation(opt Option) {
 	fmt.Printf(`
 // %s %s
 func (t Transaction) %s(key KeyConvertible, param []byte) {
-	t.atomicOp(key.ToFDBKey(), param, %d)
+	t.atomicOp(key.FDBKey(), param, %d)
 }
 `, tname, desc, tname, opt.Code)
 }

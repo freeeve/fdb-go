@@ -52,23 +52,15 @@ func (dp DirectoryPartition) Contains(k fdb.KeyConvertible) bool {
 	panic("cannot check whether a key belongs to the root of a directory partition")
 }
 
-func (dp DirectoryPartition) ToFDBKey() fdb.Key {
+func (dp DirectoryPartition) FDBKey() fdb.Key {
 	panic("cannot use the root of a directory partition as a key")
 }
 
-func (dp DirectoryPartition) BeginKey() fdb.Key {
+func (dp DirectoryPartition) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 	panic("cannot get range for the root of a directory partition")
 }
 
-func (dp DirectoryPartition) EndKey() fdb.Key {
-	panic("cannot get range for the root of a directory partition")
-}
-
-func (dp DirectoryPartition) BeginKeySelector() fdb.KeySelector {
-	panic("cannot get range for the root of a directory partition")
-}
-
-func (dp DirectoryPartition) EndKeySelector() fdb.KeySelector {
+func (dp DirectoryPartition) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
 	panic("cannot get range for the root of a directory partition")
 }
 

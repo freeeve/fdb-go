@@ -81,7 +81,7 @@ func (d Database) CreateTransaction() (Transaction, error) {
 	return Transaction{t}, nil
 }
 
-func (d Database) retryable(wrapped func() (interface{}, error), onError func(Error) FutureNil) (ret interface{}, e error) {
+func retryable(wrapped func() (interface{}, error), onError func(Error) FutureNil) (ret interface{}, e error) {
 	for {
 		ret, e = wrapped()
 
@@ -99,17 +99,6 @@ func (d Database) retryable(wrapped func() (interface{}, error), onError func(Er
 		/* retryable; otherwise take another pass at things */
 		if e != nil {
 			return
-		}
-	}
-}
-
-func panicToError(e *error) {
-	if r := recover(); r != nil {
-		fe, ok := r.(Error)
-		if ok {
-			*e = fe
-		} else {
-			panic(r)
 		}
 	}
 }
@@ -146,7 +135,7 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 		return
 	}
 
-	return d.retryable(wrapped, tr.OnError)
+	return retryable(wrapped, tr.OnError)
 }
 
 // ReadTransact runs a caller-provided function inside a retry loop, providing
@@ -175,7 +164,7 @@ func (d Database) ReadTransact(f func(ReadTransaction) (interface{}, error)) (in
 		return f(tr)
 	}
 
-	return d.retryable(wrapped, tr.OnError)
+	return retryable(wrapped, tr.OnError)
 }
 
 // Options returns a DatabaseOptions instance suitable for setting options
@@ -207,7 +196,8 @@ func (d Database) LocalityGetBoundaryKeys(er ExactRange, limit int, readVersion 
 
 	tr.Options().SetAccessSystemKeys()
 
-	ffer := KeyRange{append(Key("\xFF/keyServers/"), er.BeginKey()...), append(Key("\xFF/keyServers/"), er.EndKey()...)}
+	bk, ek := er.FDBRangeKeys()
+	ffer := KeyRange{append(Key("\xFF/keyServers/"), bk.FDBKey()...), append(Key("\xFF/keyServers/"), ek.FDBKey()...)}
 
 	kvs, e := tr.Snapshot().GetRange(ffer, RangeOptions{Limit: limit}).GetSliceWithError()
 	if e != nil {

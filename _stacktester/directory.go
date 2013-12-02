@@ -215,8 +215,9 @@ func (de *DirectoryExtension) processOp(sm *StackMachine, op string, isDB bool, 
 		}
 	case op == "RANGE":
 		ss := de.css().Sub(sm.popTuples(1)[0]...)
-		sm.store(idx, ss.BeginKey())
-		sm.store(idx, ss.EndKey())
+		bk, ek := ss.FDBRangeKeys()
+		sm.store(idx, bk)
+		sm.store(idx, ek)
 	case op == "CONTAINS":
 		k := sm.waitAndPop().item.([]byte)
 		b := de.css().Contains(fdb.Key(k))

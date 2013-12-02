@@ -103,8 +103,11 @@ func (t Transaction) GetDatabase() Database {
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
-func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (interface{}, error) {
-	return f(t)
+func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (r interface{}, e error) {
+	defer panicToError(&e)
+
+	r, e = f(t)
+	return
 }
 
 // ReadTransact passes the Transaction receiver object to the caller-provided
@@ -116,8 +119,11 @@ func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (interf
 //
 // See the ReadTransactor interface for an example of using ReadTransact with
 // Transaction, Snapshot and Database objects.
-func (t Transaction) ReadTransact(f func(ReadTransaction) (interface{}, error)) (interface{}, error) {
-	return f(t)
+func (t Transaction) ReadTransact(f func(ReadTransaction) (interface{}, error)) (r interface{}, e error) {
+	defer panicToError(&e)
+
+	r, e = f(t)
+	return
 }
 
 // Cancel cancels a transaction. All pending or future uses of the transaction
@@ -208,7 +214,7 @@ func (t Transaction) Commit() FutureNil {
 // the transaction that creates it, any watch that is no longer needed should be
 // cancelled by calling (FutureNil).Cancel() on its returned future.
 func (t Transaction) Watch(key KeyConvertible) FutureNil {
-	kb := key.ToFDBKey()
+	kb := key.FDBKey()
 	return &futureNil{newFuture(C.fdb_transaction_watch(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 
@@ -220,23 +226,25 @@ func (t *transaction) get(key []byte, snapshot int) FutureValue {
 // performed asynchronously and does not block the calling goroutine. The future
 // will become ready when the read is complete.
 func (t Transaction) Get(key KeyConvertible) FutureValue {
-	return t.get(key.ToFDBKey(), 0)
+	return t.get(key.FDBKey(), 0)
 }
 
 func (t *transaction) doGetRange(r Range, options RangeOptions, snapshot bool, iteration int) futureKeyValueArray {
-	begin := r.BeginKeySelector()
-	bkey := begin.Key.ToFDBKey()
-	end := r.EndKeySelector()
-	ekey := end.Key.ToFDBKey()
+	begin, end := r.FDBRangeKeySelectors()
+	bsel := begin.FDBKeySelector()
+	esel := end.FDBKeySelector()
+	bkey := bsel.Key.FDBKey()
+	ekey := esel.Key.FDBKey()
 
-	return futureKeyValueArray{newFuture(C.fdb_transaction_get_range(t.ptr, byteSliceToPtr(bkey), C.int(len(bkey)), C.fdb_bool_t(boolToInt(begin.OrEqual)), C.int(begin.Offset), byteSliceToPtr(ekey), C.int(len(ekey)), C.fdb_bool_t(boolToInt(end.OrEqual)), C.int(end.Offset), C.int(options.Limit), C.int(0), C.FDBStreamingMode(options.Mode-1), C.int(iteration), C.fdb_bool_t(boolToInt(snapshot)), C.fdb_bool_t(boolToInt(options.Reverse))))}
+	return futureKeyValueArray{newFuture(C.fdb_transaction_get_range(t.ptr, byteSliceToPtr(bkey), C.int(len(bkey)), C.fdb_bool_t(boolToInt(bsel.OrEqual)), C.int(bsel.Offset), byteSliceToPtr(ekey), C.int(len(ekey)), C.fdb_bool_t(boolToInt(esel.OrEqual)), C.int(esel.Offset), C.int(options.Limit), C.int(0), C.FDBStreamingMode(options.Mode-1), C.int(iteration), C.fdb_bool_t(boolToInt(snapshot)), C.fdb_bool_t(boolToInt(options.Reverse))))}
 }
 
 func (t *transaction) getRange(r Range, options RangeOptions, snapshot bool) RangeResult {
 	f := t.doGetRange(r, options, snapshot, 1)
+	begin, end := r.FDBRangeKeySelectors()
 	return RangeResult{
 		t: t,
-		sr: SelectorRange{r.BeginKeySelector(), r.EndKeySelector()},
+		sr: SelectorRange{begin, end},
 		options: options,
 		snapshot: snapshot,
 		f: &f,
@@ -267,7 +275,7 @@ func (t Transaction) GetReadVersion() FutureVersion {
 // with key. Set returns immediately, having modified the snapshot of the
 // database represented by the transaction.
 func (t Transaction) Set(key KeyConvertible, value []byte) {
-	kb := key.ToFDBKey()
+	kb := key.FDBKey()
 	C.fdb_transaction_set(t.ptr, byteSliceToPtr(kb), C.int(len(kb)), byteSliceToPtr(value), C.int(len(value)))
 }
 
@@ -275,7 +283,7 @@ func (t Transaction) Set(key KeyConvertible, value []byte) {
 // exists. Clear returns immediately, having modified the snapshot of the
 // database represented by the transaction.
 func (t Transaction) Clear(key KeyConvertible) {
-	kb := key.ToFDBKey()
+	kb := key.FDBKey()
 	C.fdb_transaction_clear(t.ptr, byteSliceToPtr(kb), C.int(len(kb)))
 }
 
@@ -283,8 +291,9 @@ func (t Transaction) Clear(key KeyConvertible) {
 // associated values. ClearRange returns immediately, having modified the
 // snapshot of the database represented by the transaction.
 func (t Transaction) ClearRange(er ExactRange) {
-	bkb := er.BeginKey().ToFDBKey()
-	ekb := er.EndKey().ToFDBKey()
+	begin, end := er.FDBRangeKeys()
+	bkb := begin.FDBKey()
+	ekb := end.FDBKey()
 	C.fdb_transaction_clear_range(t.ptr, byteSliceToPtr(bkb), C.int(len(bkb)), byteSliceToPtr(ekb), C.int(len(ekb)))
 }
 
@@ -321,7 +330,7 @@ func boolToInt(b bool) int {
 }
 
 func (t *transaction) getKey(sel KeySelector, snapshot int) FutureKey {
-	key := sel.Key.ToFDBKey()
+	key := sel.Key.FDBKey()
 	return &futureKey{future: newFuture(C.fdb_transaction_get_key(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(boolToInt(sel.OrEqual)), C.int(sel.Offset), C.fdb_bool_t(snapshot)))}
 }
 
@@ -329,7 +338,7 @@ func (t *transaction) getKey(sel KeySelector, snapshot int) FutureKey {
 // read is performed asynchronously and does not block the calling
 // goroutine. The future will become ready when the read version is available.
 func (t Transaction) GetKey(sel Selectable) FutureKey {
-	return t.getKey(sel.ToFDBKeySelector(), 0)
+	return t.getKey(sel.FDBKeySelector(), 0)
 }
 
 func (t Transaction) atomicOp(key []byte, param []byte, code int) {
@@ -337,9 +346,10 @@ func (t Transaction) atomicOp(key []byte, param []byte, code int) {
 }
 
 func addConflictRange(t *transaction, er ExactRange, crtype conflictRangeType) error {
-	begin := er.BeginKey().ToFDBKey()
-	end := er.EndKey().ToFDBKey()
-	if err := C.fdb_transaction_add_conflict_range(t.ptr, byteSliceToPtr(begin), C.int(len(begin)), byteSliceToPtr(end), C.int(len(end)), C.FDBConflictRangeType(crtype)); err != 0 {
+	begin, end := er.FDBRangeKeys()
+	bkb := begin.FDBKey()
+	ekb := end.FDBKey()
+	if err := C.fdb_transaction_add_conflict_range(t.ptr, byteSliceToPtr(bkb), C.int(len(bkb)), byteSliceToPtr(ekb), C.int(len(ekb)), C.FDBConflictRangeType(crtype)); err != 0 {
 		return Error{int(err)}
 	}
 
@@ -370,7 +380,7 @@ func copyAndAppend(orig []byte, b byte) []byte {
 // For more information on conflict ranges, see
 // https://foundationdb.com/documentation/developer-guide.html#conflict-ranges.
 func (t Transaction) AddReadConflictKey(key KeyConvertible) error {
-	return addConflictRange(t.transaction, KeyRange{key, Key(copyAndAppend(key.ToFDBKey(), 0x00))}, conflictRangeTypeRead)
+	return addConflictRange(t.transaction, KeyRange{key, Key(copyAndAppend(key.FDBKey(), 0x00))}, conflictRangeTypeRead)
 }
 
 // AddWriteConflictRange adds a range of keys to the transaction’s write
@@ -391,7 +401,7 @@ func (t Transaction) AddWriteConflictRange(er ExactRange) error {
 // For more information on conflict ranges, see
 // https://foundationdb.com/documentation/developer-guide.html#conflict-ranges.
 func (t Transaction) AddWriteConflictKey(key KeyConvertible) error {
-	return addConflictRange(t.transaction, KeyRange{key, Key(copyAndAppend(key.ToFDBKey(), 0x00))}, conflictRangeTypeWrite)
+	return addConflictRange(t.transaction, KeyRange{key, Key(copyAndAppend(key.FDBKey(), 0x00))}, conflictRangeTypeWrite)
 }
 
 // Options returns a TransactionOptions instance suitable for setting options
@@ -401,7 +411,7 @@ func (t Transaction) Options() TransactionOptions {
 }
 
 func localityGetAddressesForKey(t *transaction, key KeyConvertible) FutureStringArray {
-	kb := key.ToFDBKey()
+	kb := key.FDBKey()
 	return &futureStringArray{newFuture(C.fdb_transaction_get_addresses_for_key(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 

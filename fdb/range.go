@@ -64,8 +64,8 @@ type RangeOptions struct {
 // FoundationDB API, and the key selectors are resolved to specific keys in the
 // database while satisfying the read.
 type Range interface {
-	BeginKeySelector() KeySelector
-	EndKeySelector() KeySelector
+	// FIXME: document
+	FDBRangeKeySelectors() (Selectable, Selectable)
 }
 
 // ExactRange is the interface that describes all keys between a begin
@@ -77,15 +77,12 @@ type Range interface {
 // Any object that implements ExactRange also implements Range, and may be used
 // accordingly.
 type ExactRange interface {
-	// BeginKey returns the Key specifying the (closed) beginning of this range.
-	BeginKey() Key
-
-	// EndKey returns the Key specifying the (open) end of this range.
-	EndKey() Key
+	// FIXME: document
+	FDBRangeKeys() (KeyConvertible, KeyConvertible)
 
 	// An object that implements ExactRange must also implement Range
-	// (logically, by returning FirstGreaterOrEqual(BeginKey()) and
-	// FirstGreaterOrEqual(EndKey()).
+	// (logically, by returning FirstGreaterOrEqual() of the keys returned by
+	// FDBRangeKeys.
 	Range
 }
 
@@ -96,20 +93,12 @@ type KeyRange struct {
 	Begin, End KeyConvertible
 }
 
-func (kr KeyRange) BeginKey() Key {
-	return kr.Begin.ToFDBKey()
+func (kr KeyRange) FDBRangeKeys() (KeyConvertible, KeyConvertible) {
+	return kr.Begin, kr.End
 }
 
-func (kr KeyRange) EndKey() Key {
-	return kr.End.ToFDBKey()
-}
-
-func (kr KeyRange) BeginKeySelector() KeySelector {
-	return FirstGreaterOrEqual(kr.Begin)
-}
-
-func (kr KeyRange) EndKeySelector() KeySelector {
-	return FirstGreaterOrEqual(kr.End)
+func (kr KeyRange) FDBRangeKeySelectors() (Selectable, Selectable) {
+	return kr.Begin.FDBKey(), kr.End.FDBKey()
 }
 
 // SelectorRange implements Range directly from a pair of Selectable
@@ -119,12 +108,8 @@ type SelectorRange struct {
 	Begin, End Selectable
 }
 
-func (sr SelectorRange) BeginKeySelector() KeySelector {
-	return sr.Begin.ToFDBKeySelector()
-}
-
-func (sr SelectorRange) EndKeySelector() KeySelector {
-	return sr.End.ToFDBKeySelector()
+func (sr SelectorRange) FDBRangeKeySelectors() (Selectable, Selectable) {
+	return sr.Begin, sr.End
 }
 
 // RangeResult is a handle to the asynchronous result of a range

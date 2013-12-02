@@ -225,7 +225,10 @@ func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, err
 
 		return true, nil
 	})
-	return r.(bool), e
+	if e != nil {
+		return false, e
+	}
+	return r.(bool), nil
 }
 
 func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, error) {
@@ -249,7 +252,10 @@ func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, e
 
 		return dl.subdirNames(rtr, node.subspace)
 	})
-	return r.([]string), e
+	if e != nil {
+		return nil, e
+	}
+	return r.([]string), nil
 }
 
 func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
@@ -308,7 +314,6 @@ func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []stri
 
 		return dl.contentsOfNode(oldNode.subspace, newPath, oldNode._layer.GetOrPanic())
 	})
-
 	if e != nil {
 		return nil, e
 	}
@@ -346,7 +351,10 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 
 		return true, nil
 	})
-	return r.(bool), e
+	if e != nil {
+		return false, e
+	}
+	return r.(bool), nil
 }
 
 func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) error {
@@ -425,7 +433,8 @@ func (dl DirectoryLayer) nodeContainingKey(rtr fdb.ReadTransaction, key []byte) 
 		return dl.rootNode, nil
 	}
 
-	kr := fdb.KeyRange{dl.nodeSS.BeginKey(), fdb.Key(append(dl.nodeSS.Pack(tuple.Tuple{key}), 0x00))}
+	bk, _ := dl.nodeSS.FDBRangeKeys()
+	kr := fdb.KeyRange{bk, fdb.Key(append(dl.nodeSS.Pack(tuple.Tuple{key}), 0x00))}
 
 	kvs := rtr.GetRange(kr, fdb.RangeOptions{Reverse:true, Limit:1}).GetSliceOrPanic()
 	if len(kvs) == 1 {
@@ -460,7 +469,8 @@ func (dl DirectoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (b
 		return false, e
 	}
 
-	if !isRangeEmpty(rtr, fdb.KeyRange{fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.BeginKey()})), fdb.Key(dl.nodeSS.Pack(tuple.Tuple{kr.EndKey()}))}) {
+	bk, ek := kr.FDBRangeKeys()
+	if !isRangeEmpty(rtr, fdb.KeyRange{dl.nodeSS.Pack(tuple.Tuple{bk}), dl.nodeSS.Pack(tuple.Tuple{ek})}) {
 		return false, nil
 	}
 

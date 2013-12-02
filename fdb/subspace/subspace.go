@@ -104,7 +104,7 @@ func (s subspace) Pack(t tuple.Tuple) fdb.Key {
 }
 
 func (s subspace) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
-	key := k.ToFDBKey()
+	key := k.FDBKey()
 	if !bytes.HasPrefix(key, s.b) {
 		return nil, errors.New("key is not in subspace")
 	}
@@ -112,27 +112,20 @@ func (s subspace) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
 }
 
 func (s subspace) Contains(k fdb.KeyConvertible) bool {
-	return bytes.HasPrefix(k.ToFDBKey(), s.b)
+	return bytes.HasPrefix(k.FDBKey(), s.b)
 }
 
-func (s subspace) ToFDBKey() fdb.Key {
+func (s subspace) FDBKey() fdb.Key {
 	return fdb.Key(s.b)
 }
 
-func (s subspace) BeginKey() fdb.Key {
-	return concat(s.b, 0x00)
+func (s subspace) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
+	return fdb.Key(concat(s.b, 0x00)), fdb.Key(concat(s.b, 0xFF))
 }
 
-func (s subspace) EndKey() fdb.Key {
-	return concat(s.b, 0xFF)
-}
-
-func (s subspace) BeginKeySelector() fdb.KeySelector {
-	return fdb.FirstGreaterOrEqual(s.BeginKey())
-}
-
-func (s subspace) EndKeySelector() fdb.KeySelector {
-	return fdb.FirstGreaterOrEqual(s.EndKey())
+func (s subspace) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
+	begin, end := s.FDBRangeKeys()
+	return begin.FDBKey(), end.FDBKey()
 }
 
 func concat(a []byte, b ...byte) []byte {
