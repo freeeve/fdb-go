@@ -82,6 +82,22 @@ func moveTo(t fdb.Transactor, dl DirectoryLayer, path, newAbsolutePath []string)
 
 var root = NewDirectoryLayer(subspace.FromBytes([]byte{0xFE}), subspace.AllKeys(), false)
 
+func CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return root.CreateOrOpen(t, path, layer)
+}
+
+func Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return root.Create(t, path, layer)
+}
+
+func CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
+	return root.CreatePrefix(t, path, layer, prefix)
+}
+
+func Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error) {
+	return root.Open(rt, path, layer)
+}
+
 func Root() Directory {
 	return root
 }
