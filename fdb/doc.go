@@ -72,6 +72,13 @@ A basic interaction with the FoundationDB API is demonstrated below:
         fmt.Printf("hello is now world, foo was: %s\n", string(ret.([]byte)))
     }
 
+Futures
+
+FIXME: I'm going to add some text here about futures in general, how they work
+in this package, when they may or may not block, etc. Also a specific warning
+about returning potentially unready Futures from transactional functions (the
+transaction may be finalized cancelling the future before it becomes ready).
+
 On Panics
 
 Idiomatic Go code strongly frowns at panics that escape library/package
@@ -138,11 +145,16 @@ will either result in a retry of the function or be returned by Transact(). If
 the error is any other type (panics from code other than GetOrPanic()),
 Transact() will re-panic the original value.
 
-Note that the Transact() method of Transaction does not recover
-panics. (Transaction).Transact() exists to allow composition of transactional
-functions, i.e. calling a function that takes a Transactor from inside another
-transactional function (see the Transactor example below). Any panic is assumed
-to be handled by an enclosing (Database).Transact() wrapper.
+Note that the Transact() method of Transaction also recovers panics, but does
+not itself retry. If the recovered value is an FDB Error, it will be returned to
+the caller of (Transaction).Transact(); all other values will be re-panicked.
+
+Transactions and Goroutines
+
+FIXME: I'm going to add a section talking about the danger of using goroutines
+inside transactional functions in combination with GetOrPanic()
+methods. Although perhaps this text belongs in the Transactor
+section/example(s)?
 
 Streaming Modes
 

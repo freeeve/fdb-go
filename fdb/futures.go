@@ -45,6 +45,7 @@ import (
 	"runtime"
 )
 
+// FIXME: document
 type Future interface {
 	// BlockUntilReady blocks the calling goroutine until the future is ready. A
 	// future becomes ready either when it receives a value of its enclosed type (if
