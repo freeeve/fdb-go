@@ -81,7 +81,3 @@ func (d directorySubspace) GetLayer() []byte {
 func (d directorySubspace) GetPath() []string {
 	return d.path
 }
-
-func (d directorySubspace) getLayerForPath(path []string) DirectoryLayer {
-	return d.dl
-}

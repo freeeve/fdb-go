@@ -56,8 +56,6 @@ type Directory interface {
 
 	GetLayer() []byte
 	GetPath() []string
-
-	getLayerForPath(path []string) DirectoryLayer
 }
 
 func stringsEqual(a, b []string) bool {

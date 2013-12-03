@@ -57,10 +57,6 @@ func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace, allowManualPrefixes 
 	return dl
 }
 
-func (dl DirectoryLayer) getLayerForPath(path []string) DirectoryLayer {
-	return dl
-}
-
 func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate, allowOpen bool) (DirectorySubspace, error) {
 	if e := dl.checkVersion(rtr, nil); e != nil {
 		return nil, e
