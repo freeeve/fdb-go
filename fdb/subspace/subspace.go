@@ -39,16 +39,15 @@ import (
 // database.
 type Subspace interface {
 	// Sub returns a new Subspace whose prefix extends this Subspace with the
-	// encoding of the provided element(s). These elements must comply with the
-	// limitations on Tuple elements defined in the fdb.tuple package.
-	Sub(el ...interface{}) Subspace
+	// encoding of the provided element(s). If any of the elements are not a
+	// valid tuple.TupleElement, a runtime panic will occur.
+	Sub(el ...tuple.TupleElement) Subspace
 
 	// Bytes returns the literal bytes of the prefix of this subspace.
 	Bytes() []byte
 
 	// Pack returns the key encoding the specified Tuple with the prefix of this
-	// Subspace prepended. The Tuple must comply with the limitations on Tuple
-	// elements defined in the fdb.tuple package.
+	// Subspace prepended.
 	Pack(t tuple.Tuple) fdb.Key
 
 	// Unpack returns the Tuple encoded by the given key with the prefix of this
@@ -79,9 +78,11 @@ func AllKeys() Subspace {
 	return subspace{}
 }
 
-// FromTuple returns a new Subspace from the provided Tuple.
-func FromTuple(t tuple.Tuple) Subspace {
-	return subspace{t.Pack()}
+// Sub returns a new Subspace whose prefix is the encoding of the provided
+// element(s). If any of the elements are not a valid tuple.TupleElement, a
+// runtime panic will occur.
+func Sub(el ...tuple.TupleElement) Subspace {
+	return subspace{tuple.Tuple(el).Pack()}
 }
 
 // FromBytes returns a new Subspace from the provided bytes.
@@ -91,7 +92,7 @@ func FromBytes(b []byte) Subspace {
 	return subspace{b}
 }
 
-func (s subspace) Sub(el ...interface{}) Subspace {
+func (s subspace) Sub(el ...tuple.TupleElement) Subspace {
 	return subspace{concat(s.Bytes(), tuple.Tuple(el).Pack()...)}
 }
 

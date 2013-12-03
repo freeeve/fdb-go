@@ -26,8 +26,8 @@
 // of higher-level data models.
 //
 // FoundationDB tuples can currently encode byte and unicode strings, integers
-// and NULL values. In Go these are represented as []byte (or
-// fdb.KeyConvertible), string, int64 (or int) and nil.
+// and NULL values. In Go these are represented as []byte, string, int64 and
+// nil.
 package tuple
 
 import (
@@ -37,14 +37,23 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb"
 )
 
-// Tuple is a slice of objects that can be encoded as FoundationDB tuples. If a
-// tuple contains elements of types other than []byte (or fdb.KeyConvertible),
-// string, int64 (or int) or nil, an panic will occur when the Tuple is packed.
+// TupleElement describes types that may be encoded in FoundationDB
+// tuples. Although the Go compiler cannot enforce this, it is a programming
+// error to use objects of unsupported types as TupleElements (and will
+// typically result in a runtime panic).
+//
+// The valid types for TupleElement are []byte (or fdb.KeyConvertible), string,
+// int64 (or int), and nil.
+type TupleElement interface{}
+
+// Tuple is a slice of objects that can be encoded as FoundationDB tuples. If
+// any of the TupleElements are of unsupported types, a runtime panic will occur
+// when the Tuple is packed.
 //
 // Given a Tuple T containing objects only of these types, then T will be
 // identical to the Tuple returned by unpacking the byte slice obtained by
-// packing T.
-type Tuple []interface{}
+// packing T (modulo type normalization to []byte and int64).
+type Tuple []TupleElement
 
 var sizeLimits = []uint64{
 	1 << (0 * 8) - 1,
@@ -178,7 +187,7 @@ func decodeInt(b []byte) (int64, int) {
 }
 
 // Unpack returns the tuple encoded by the provided byte slice, or an error if
-// the byte slice did not correctly encode a FoundationDB tuple.
+// the key does not correctly encode a FoundationDB tuple.
 func Unpack(k fdb.KeyConvertible) (Tuple, error) {
 	var t Tuple
 

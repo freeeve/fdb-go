@@ -32,7 +32,7 @@ type DirectoryPartition struct {
 	parentDirectoryLayer DirectoryLayer
 }
 
-func (dp DirectoryPartition) Sub(el ...interface{}) subspace.Subspace {
+func (dp DirectoryPartition) Sub(el ...tuple.TupleElement) subspace.Subspace {
 	panic("cannot open subspace in the root of a directory partition")
 }
 
