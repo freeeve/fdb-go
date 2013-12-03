@@ -27,9 +27,9 @@ package fdb
 */
 import "C"
 
-// A ReadTransaction represents an object that can asynchronously read from a
-// FoundationDB database. Transaction and Snapshot both satisfy the
-// ReadTransaction interface.
+// A ReadTransaction can asynchronously read from a FoundationDB
+// database. Transaction and Snapshot both satisfy the ReadTransaction
+// interface.
 //
 // All ReadTransactions satisfy the ReadTransactor interface and may be used
 // with read-only transactional functions.
@@ -95,11 +95,17 @@ func (t Transaction) GetDatabase() Database {
 	return t.transaction.db
 }
 
-// Transact passes the Transaction receiver object to the caller-provided
-// function, but does not handle errors or commit the transaction.
+// Transact executes the caller-provided function, passing it the Transaction
+// receiver object.
 //
-// Transact makes Transaction satisfy the Transactor interface, allowing
-// transactional functions to be used compositionally.
+// A panic of type Error during execution of the function will be recovered and
+// returned to the caller as an error, but Transact will not retry the function
+// or commit the Transaction after the caller-provided function completes.
+//
+// By satisfying the Transactor interface, Transaction may be passed to a
+// transactional function from another transactional function, allowing
+// composition. The outermost transactional function must have been provided a
+// Database, or else the transaction will never be committed.
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
@@ -110,12 +116,16 @@ func (t Transaction) Transact(f func (Transaction) (interface{}, error)) (r inte
 	return
 }
 
-// ReadTransact passes the Transaction receiver object to the caller-provided
-// function (as a ReadTransaction), but does not handle errors or commit the
-// transaction.
+// ReadTransact executes the caller-provided function, passing it the
+// Transaction receiver object (as a ReadTransaction).
 //
-// ReadTransact makes Transaction satisfy the ReadTransactor interface, allowing
-// read-only transactional functions to be used compositionally.
+// A panic of type Error during execution of the function will be recovered and
+// returned to the caller as an error, but ReadTransact will not retry the
+// function.
+//
+// By satisfying the ReadTransactor interface, Transaction may be passed to a
+// read-only transactional function from another (possibly read-only)
+// transactional function, allowing composition.
 //
 // See the ReadTransactor interface for an example of using ReadTransact with
 // Transaction, Snapshot and Database objects.

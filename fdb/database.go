@@ -104,15 +104,22 @@ func retryable(wrapped func() (interface{}, error), onError func(Error) FutureNi
 }
 
 // Transact runs a caller-provided function inside a retry loop, providing it
-// with a newly created transaction. After the function returns, the transaction
+// with a newly created Transaction. After the function returns, the Transaction
 // will be committed automatically. Any error during execution of the caller's
-// function (by panic or return) or the commit will cause the entire transaction
-// to be retried or, if fatal, return the error to the caller.
+// function (by panic or return) or the commit will cause the caller-provided
+// function and commit to be retried or, if fatal, return the error to the
+// caller.
 //
-// When working with fdb Future objects in a transactional function, you may
-// either explicity check and return error values from (Future).GetWithError(),
-// or call (Future).GetOrPanic(). Transact will recover a panicked fdb.Error and
-// either retry the transaction or return the error.
+// When working with Future objects in a transactional function, you may either
+// explicity check and return error values using GetWithError(), or call
+// GetOrPanic(). Transact will recover a panicked Error and either retry the
+// transaction or return the error.
+//
+// Do not return Future objects from the function provided to Transact. The
+// Transaction created by Transact may be finalized at any point after Transact
+// returns, resulting in the cancellation of any outstanding
+// reads. Additionally, any errors returned or panicked by the Future will no
+// longer be able to trigger a retry of the caller-provided function.
 //
 // See the Transactor interface for an example of using Transact with
 // Transaction and Database objects.
@@ -139,15 +146,21 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 }
 
 // ReadTransact runs a caller-provided function inside a retry loop, providing
-// it with a newly created ReadTransaction. Any error during execution of the
-// caller's function (by panic or return) will cause the entire transaction to
-// be retried or, if fatal, return the error to the caller.
+// it with a newly created Transaction (as a ReadTransaction). Any error during
+// execution of the caller's function (by panic or return) will cause the
+// caller-provided function to be retried or, if fatal, return the error to the
+// caller.
 //
-// When working with fdb Future objects in a read-only transactional function,
-// you may either explicity check and return error values from
-// (Future).GetWithError(), or call (Future).GetOrPanic(). ReadTransact will
-// recover a panicked fdb.Error and either retry the transaction or return the
-// error.
+// When working with Future objects in a read-only transactional function, you
+// may either explicity check and return error values using GetWithError(), or
+// call GetOrPanic(). ReadTransact will recover a panicked Error and either
+// retry the transaction or return the error.
+//
+// Do not return Future objects from the function provided to ReadTransact. The
+// Transaction created by ReadTransact may be finalized at any point after
+// ReadTransact returns, resulting in the cancellation of any outstanding
+// reads. Additionally, any errors returned or panicked by the Future will no
+// longer be able to trigger a retry of the caller-provided function.
 //
 // See the ReadTransactor interface for an example of using ReadTransact with
 // Transaction, Snapshot and Database objects.

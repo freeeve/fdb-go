@@ -42,22 +42,28 @@ func notifyChannel(ch *chan struct{}) {
 	close(*ch)
 }
 
-// A Transactor represents an object that can execute a transactional
-// function. Functions that accept a Transactor can be called with either a
-// Database or a Transaction, allowing them to be composed transactionally.
-//
-// All Transactors are also ReadTransactors, allowing them to be used in
-// read-only transactional methods.
+// A Transactor can execute a function that requires a Transaction. Functions
+// written to accept a Transactor are called transactional functions, and may be
+// called with either a Database or a Transaction.
 type Transactor interface {
+	// Transact executes the caller-provided function, providing it with a
+	// Transaction (itself a Transactor, allowing composition of transactional
+	// functions).
 	Transact(func (Transaction) (interface{}, error)) (interface{}, error)
-	ReadTransact(func (ReadTransaction) (interface{}, error)) (interface{}, error)
+
+	// All Transactors are also ReadTransactors, allowing them to be used with
+	// read-only transactional functions.
+	ReadTransactor
 }
 
-// A ReadTransactor represents an object that can execute a read-only
-// transactional function. Functions that accept a ReadTransactor can be called
-// with a Database, Transaction or Snapshot, allowing them to be composed
-// transactionally.
+// A ReadTransactor can execute a function that requires a
+// ReadTransaction. Functions written to accept a ReadTransactor are called
+// read-only transactional functions, and may be called with a Database,
+// Transaction or Snapshot.
 type ReadTransactor interface {
+	// ReadTransact executes the caller-provided function, providing it with a
+	// ReadTransaction (itself a ReadTransactor, allowing composition of
+	// read-only transactional functions).
 	ReadTransact(func (ReadTransaction) (interface{}, error)) (interface{}, error)
 }
 
@@ -270,8 +276,8 @@ func byteSliceToPtr(b []byte) *C.uint8_t {
 	}
 }
 
-// KeyConvertible is the interface implemented by types which may be used as
-// FoundationDB Keys. The fdb.Key type satisfies the KeyConvertible interface.
+// A KeyConvertible can be converted to a FoundationDB Key. All functions in the
+// FoundationDB API that address a specific key accept a KeyConvertible.
 type KeyConvertible interface {
 	FDBKey() Key
 }

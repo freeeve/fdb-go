@@ -59,21 +59,21 @@ type RangeOptions struct {
 	Reverse bool
 }
 
-// Range is the interface that describes all keys between a begin (inclusive)
-// and end (exclusive) key selector. A Range is provided to a read method of the
-// FoundationDB API, and the key selectors are resolved to specific keys in the
-// database while satisfying the read.
+// A Range describes all keys between a begin (inclusive) and end (exclusive)
+// key selector. A Range is provided to a read method of the FoundationDB API,
+// and the key selectors are resolved to specific keys in the database while
+// satisfying the read.
 type Range interface {
 	// FDBRangeKeySelectors returns a pair of key selectors that describe the
 	// beginning and end of a range.
 	FDBRangeKeySelectors() (begin, end Selectable)
 }
 
-// ExactRange is the interface that describes all keys between a begin
-// (inclusive) and end (exclusive) key. An ExactRange is provided to a method of
-// the FoundationDB API that does not already incur a read latency. If you need
-// to specify an exact range using key selectors, you must first resolve the
-// selectors to keys using the GetKey() method.
+// An ExactRange describes all keys between a begin (inclusive) and end
+// (exclusive) key. An ExactRange is provided to a method of the FoundationDB
+// API that does not already incur a read latency. If you need to specify an
+// exact range using key selectors, you must first resolve the selectors to keys
+// using the GetKey() method.
 //
 // Any object that implements ExactRange also implements Range, and may be used
 // accordingly.
@@ -88,9 +88,9 @@ type ExactRange interface {
 	Range
 }
 
-// KeyRange implements ExactRange directly from a pair of KeyConvertible
-// objects. Note that the default zero-value of KeyRange specifies an empty
-// range before all keys in the database.
+// KeyRange is an ExactRange constructed from a pair of KeyConvertibles. Note
+// that the default zero-value of KeyRange specifies an empty range before all
+// keys in the database.
 type KeyRange struct {
 	Begin, End KeyConvertible
 }
@@ -105,7 +105,7 @@ func (kr KeyRange) FDBRangeKeySelectors() (Selectable, Selectable) {
 	return FirstGreaterOrEqual(kr.Begin), FirstGreaterOrEqual(kr.End)
 }
 
-// SelectorRange implements Range directly from a pair of Selectable
+// SelectorRange is a Range constructed directly from a pair of Selectable
 // objects. Note that the default zero-value of SelectorRange specifies an empty
 // range before all keys in the database.
 type SelectorRange struct {

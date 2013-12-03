@@ -32,12 +32,16 @@ type Snapshot struct {
 	*transaction
 }
 
-// ReadTransact passes the Snapshot receiver object to the caller-provided
-// function (as a ReadTransaction), but does not handle errors or commit the
-// transaction.
+// ReadTransact executes the caller-provided function, passing it the Snapshot
+// receiver object (as a ReadTransaction).
 //
-// ReadTransact makes Snapshot satisfy the ReadTransactor interface, allowing
-// read-only transactional functions to be used compositionally.
+// A panic of type Error during execution of the function will be recovered and
+// returned to the caller as an error, but ReadTransact will not retry the
+// function.
+//
+// By satisfying the ReadTransactor interface, Snapshot may be passed to a
+// read-only transactional function from another (possibly read-only)
+// transactional function, allowing composition.
 //
 // See the ReadTransactor interface for an example of using ReadTransact with
 // Transaction, Snapshot and Database objects.

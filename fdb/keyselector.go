@@ -21,9 +21,8 @@
 
 package fdb
 
-// Selectable is the interface implemented by types which may be used to resolve
-// a key in FoundationDB API calls. The fdb.KeySelector and fdb.Key types
-// satisfy the Selectable interface.
+// A Selectable can be converted to a FoundationDB KeySelector. All functions in
+// the FoundationDB API that resolve a key selector to a key accept Selectable.
 type Selectable interface {
 	FDBKeySelector() KeySelector
 }

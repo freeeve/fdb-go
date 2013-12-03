@@ -37,10 +37,10 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb"
 )
 
-// TupleElement describes types that may be encoded in FoundationDB
+// A TupleElement is one of the types that may be encoded in FoundationDB
 // tuples. Although the Go compiler cannot enforce this, it is a programming
-// error to use objects of unsupported types as TupleElements (and will
-// typically result in a runtime panic).
+// error to use an unsupported types as a TupleElement (and will typically
+// result in a runtime panic).
 //
 // The valid types for TupleElement are []byte (or fdb.KeyConvertible), string,
 // int64 (or int), and nil.
