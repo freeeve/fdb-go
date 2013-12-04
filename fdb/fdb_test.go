@@ -69,7 +69,7 @@ func ExampleTransactor() {
 		return e
 	}
 
-	setMany := func(t fdb.Transactor, value []byte, keys ...[]byte) error {
+	setMany := func(t fdb.Transactor, value []byte, keys ...fdb.Key) error {
 		fmt.Printf("setMany called with: %T\n", t)
 		_, e := t.Transact(func(tr fdb.Transaction) (interface{}, error) {
 			for _, key := range(keys) {
@@ -87,7 +87,7 @@ func ExampleTransactor() {
 		return
 	}
 	fmt.Println("\nCalling setMany with a database:")
-	e = setMany(db, []byte("bar"), []byte("foo1"), []byte("foo2"), []byte("foo3"))
+	e = setMany(db, []byte("bar"), fdb.Key("foo1"), fdb.Key("foo2"), fdb.Key("foo3"))
 	if e != nil {
 		fmt.Println(e)
 		return
