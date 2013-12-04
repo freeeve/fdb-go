@@ -37,7 +37,7 @@ import (
 //
 // Although Database provides convenience methods for reading and writing data,
 // modifications to a database are usually made via transactions, which are
-// usually created and committed automatically by the (Database).Transact()
+// usually created and committed automatically by the (Database).Transact
 // method.
 type Database struct {
 	*database
@@ -49,7 +49,7 @@ type database struct {
 
 // DatabaseOptions is a handle with which to set options that affect a Database
 // object. A DatabaseOptions instance should be obtained with the
-// (Database).Options() method.
+// (Database).Options method.
 type DatabaseOptions struct {
 	d *database
 }
@@ -65,7 +65,7 @@ func (d *database) destroy() {
 }
 
 // CreateTransaction returns a new FoundationDB transaction. It is generally
-// preferable to use the (Database).Transact() method, which handles
+// preferable to use the (Database).Transact method, which handles
 // automatically creating and committing a transaction with appropriate retry
 // behavior.
 func (d Database) CreateTransaction() (Transaction, error) {
@@ -105,14 +105,13 @@ func retryable(wrapped func() (interface{}, error), onError func(Error) FutureNi
 
 // Transact runs a caller-provided function inside a retry loop, providing it
 // with a newly created Transaction. After the function returns, the Transaction
-// will be committed automatically. Any error during execution of the caller's
-// function (by panic or return) or the commit will cause the caller-provided
-// function and commit to be retried or, if fatal, return the error to the
-// caller.
+// will be committed automatically. Any error during execution of the function
+// (by panic or return) or the commit will cause the function and commit to be
+// retried or, if fatal, return the error to the caller.
 //
 // When working with Future objects in a transactional function, you may either
-// explicity check and return error values using GetWithError(), or call
-// GetOrPanic(). Transact will recover a panicked Error and either retry the
+// explicity check and return error values using GetWithError, or call
+// GetOrPanic. Transact will recover a panicked Error and either retry the
 // transaction or return the error.
 //
 // Do not return Future objects from the function provided to Transact. The
@@ -147,14 +146,13 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 
 // ReadTransact runs a caller-provided function inside a retry loop, providing
 // it with a newly created Transaction (as a ReadTransaction). Any error during
-// execution of the caller's function (by panic or return) will cause the
-// caller-provided function to be retried or, if fatal, return the error to the
-// caller.
+// execution of the function (by panic or return) will cause the function to be
+// retried or, if fatal, return the error to the caller.
 //
 // When working with Future objects in a read-only transactional function, you
-// may either explicity check and return error values using GetWithError(), or
-// call GetOrPanic(). ReadTransact will recover a panicked Error and either
-// retry the transaction or return the error.
+// may either explicity check and return error values using GetWithError, or
+// call GetOrPanic. ReadTransact will recover a panicked Error and either retry
+// the transaction or return the error.
 //
 // Do not return Future objects from the function provided to ReadTransact. The
 // Transaction created by ReadTransact may be finalized at any point after

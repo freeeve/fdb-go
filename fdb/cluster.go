@@ -53,7 +53,7 @@ func (c *cluster) destroy() {
 // generally preferable to use Open or OpenDefault to obtain a database handle
 // directly.
 //
-// In the current release, the database name must be "DB".
+// In the current release, the database name must be []byte("DB").
 func (c Cluster) OpenDatabase(dbName []byte) (Database, error) {
 	f := C.fdb_cluster_create_database(c.ptr, byteSliceToPtr(dbName), C.int(len(dbName)))
 	fdb_future_block_until_ready(f)

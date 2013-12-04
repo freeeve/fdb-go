@@ -110,17 +110,17 @@ implemented using only error values:
         return []string{valueOne, valueTwo}, nil
     })
 
-If either read encounters an error, it will be returned to Transact(), which
-will determine if the error is retryable or not (using the OnError() method of
-Transaction). If the error is an FDB Error and retryable (such as a conflict
-with with another transaction), then the programmer-provided function will be
-run again. If the error is fatal (or not an FDB Error), then the error will be
-returned to the caller of Transact().
+If either read encounters an error, it will be returned to Transact, which will
+determine if the error is retryable or not (using (Transaction).OnError). If the
+error is an FDB Error and retryable (such as a conflict with with another
+transaction), then the programmer-provided function will be run again. If the
+error is fatal (or not an FDB Error), then the error will be returned to the
+caller of Transact.
 
 In practice, checking for an error from every asynchronous future type in the
 FoundationDB API quickly becomes frustrating. As a convenience, every Future
-type also provides a method GetOrPanic(), which returns the same type and value
-as GetWithError(), but exposes FoundationDB Errors via a panic rather than an
+type also has a GetOrPanic method, which returns the same type and value as
+GetWithError, but exposes FoundationDB Errors via a panic rather than an
 explicitly returned error. The above example may be rewritten as:
 
     ret, e := db.Transact(func (tr Transaction) (interface{}, error) {
@@ -140,25 +140,24 @@ explicitly returned error. The above example may be rewritten as:
     })
 
 Any panic that occurs during execution of the caller-provided function will be
-recovered by the Transact() method of Database. If the error is an FDB Error, it
-will either result in a retry of the function or be returned by Transact(). If
-the error is any other type (panics from code other than GetOrPanic()),
-Transact() will re-panic the original value.
+recovered by the (Database).Transact method. If the error is an FDB Error, it
+will either result in a retry of the function or be returned by Transact. If the
+error is any other type (panics from code other than GetOrPanic), Transact will
+re-panic the original value.
 
-Note that the Transact() method of Transaction also recovers panics, but does
-not itself retry. If the recovered value is an FDB Error, it will be returned to
-the caller of (Transaction).Transact(); all other values will be re-panicked.
+Note that (Transaction).Transact also recovers panics, but does not itself
+retry. If the recovered value is an FDB Error, it will be returned to the caller
+of (Transaction).Transact; all other values will be re-panicked.
 
 Transactions and Goroutines
 
 FIXME: I'm going to add a section talking about the danger of using goroutines
-inside transactional functions in combination with GetOrPanic()
-methods. Although perhaps this text belongs in the Transactor
-section/example(s)?
+inside transactional functions in combination with GetOrPanic methods. Although
+perhaps this text belongs in the Transactor section/example(s)?
 
 Streaming Modes
 
-When using GetRange() methods in the FoundationDB API, clients can request large
+When using GetRange methods in the FoundationDB API, clients can request large
 ranges of the database to iterate over. Making such a request doesn't
 necessarily mean that the client will consume all of the data in the range --
 sometimes the client doesn't know how far it intends to iterate in
@@ -189,7 +188,8 @@ operands to atomic operations in this API must be provided as appropriately
 encoded byte slices. To convert a Go type to a byte slice, see the binary
 package.
 
-The current atomic operation methods in this API are Add(), BitAnd(), BitOr()
-and BitXor() (on the Transaction and Database objects).
+The current atomic operations in this API are Add, BitAnd, BitOr and BitXor (all
+methods on Transaction).
 */
-package fdb
+
+ package fdb

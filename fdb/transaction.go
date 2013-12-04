@@ -74,7 +74,7 @@ type transaction struct {
 
 // TransactionOptions is a handle with which to set options that affect a
 // Transaction object. A TransactionOptions instance should be obtained with the
-// (Transaction).Options() method.
+// (Transaction).Options method.
 type TransactionOptions struct {
 	transaction *transaction
 }
@@ -138,18 +138,18 @@ func (t Transaction) ReadTransact(f func(ReadTransaction) (interface{}, error)) 
 
 // Cancel cancels a transaction. All pending or future uses of the transaction
 // will encounter an error. The Transaction object may be reused after calling
-// (Transaction).Reset().
+// (Transaction).Reset.
 //
-// Be careful if you are using (Transaction).Reset() and (Transaction).Cancel()
+// Be careful if you are using (Transaction).Reset and (Transaction).Cancel
 // concurrently with the same transaction. Since they negate each other’s
 // effects, a race condition between these calls will leave the transaction in
 // an unknown state.
 //
-// If your program attempts to cancel a transaction after (Transaction).Commit()
+// If your program attempts to cancel a transaction after (Transaction).Commit
 // has been called but before it returns, unpredictable behavior will
 // result. While it is guaranteed that the transaction will eventually end up in
 // a cancelled state, the commit may or may not occur. Moreover, even if the
-// call to (Transaction).Commit() appears to return a transaction_cancelled
+// call to (Transaction).Commit appears to return a transaction_cancelled
 // error, the commit may have occurred or may occur in the future. This can make
 // it more difficult to reason about the order in which transactions occur.
 func (t Transaction) Cancel() {
@@ -180,7 +180,7 @@ func (t Transaction) Snapshot() Snapshot {
 // fatal, or return nil (after blocking the calling goroutine for a suitable
 // delay) for retryable errors.
 //
-// Typical code will not use OnError directly. (Database).Transact() uses
+// Typical code will not use OnError directly. (Database).Transact uses
 // OnError internally to implement a correct retry loop.
 func (t Transaction) OnError(e Error) FutureNil {
 	return &futureNil{newFuture(C.fdb_transaction_on_error(t.ptr, C.fdb_error_t(e.Code)))}
@@ -189,7 +189,7 @@ func (t Transaction) OnError(e Error) FutureNil {
 // Commit attempts to commit the modifications made in the transaction to the
 // database. Waiting on the returned future will block the calling goroutine
 // until the transaction has either been committed successfully or an error is
-// encountered. Any error should be passed to (Transaction).OnError() to determine
+// encountered. Any error should be passed to (Transaction).OnError to determine
 // if the error is retryable or not.
 //
 // As with other client/server databases, in some failure scenarios a client may
@@ -213,16 +213,16 @@ func (t Transaction) Commit() FutureNil {
 // Until the transaction that created it has been committed, a watch will not
 // report changes made by other transactions. In contrast, a watch will
 // immediately report changes made by the transaction itself. Watches cannot be
-// created if the transaction has set
-// (Transaction).Options().SetReadYourWritesDisable(), and an attempt to do so
-// will return a watches_disabled error.
+// created if the transaction has called SetReadYourWritesDisable on the
+// Transaction options, and an attempt to do so will return a watches_disabled
+// error.
 //
 // By default, each database connection can have no more than 10,000 watches
 // that have not yet reported a change. When this number is exceeded, an attempt
 // to create a watch will return a too_many_watches error. This limit can be
-// changed using (Database).Options().SetMaxWatches(). Because a watch outlives
-// the transaction that creates it, any watch that is no longer needed should be
-// cancelled by calling (FutureNil).Cancel() on its returned future.
+// changed using SetMaxWatches on the Database. Because a watch outlives the
+// transaction that creates it, any watch that is no longer needed should be
+// cancelled by calling (FutureNil).Cancel on its returned future.
 func (t Transaction) Watch(key KeyConvertible) FutureNil {
 	kb := key.FDBKey()
 	return &futureNil{newFuture(C.fdb_transaction_watch(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
@@ -262,10 +262,10 @@ func (t *transaction) getRange(r Range, options RangeOptions, snapshot bool) Ran
 }
 
 // GetRange performs a range read. The returned RangeResult represents all
-// KeyValue objects kv where beginKey <= kv.Key < endKey, ordered by
-// kv.Key. beginKey and endKey are the keys described by the key selectors
-// r.BeginKeySelector() and r.EndKeySelector(). All reads performed as a result
-// of GetRange are asynchronous and do not block the calling goroutine.
+// KeyValue objects kv where beginKey <= kv.Key < endKey, ordered by kv.Key
+// (where beginKey and endKey are the keys described by the key selectors
+// returned by r.FDBKeySelectors). All reads performed as a result of GetRange
+// are asynchronous and do not block the calling goroutine.
 func (t Transaction) GetRange(r Range, options RangeOptions) RangeResult {
 	return t.getRange(r, options, false)
 }
@@ -307,13 +307,13 @@ func (t Transaction) ClearRange(er ExactRange) {
 	C.fdb_transaction_clear_range(t.ptr, byteSliceToPtr(bkb), C.int(len(bkb)), byteSliceToPtr(ekb), C.int(len(ekb)))
 }
 
-// (Infrequently used) GetCommittedVersion returns the version number at which a successful commit
-// modified the database. This must be called only after the successful
-// (non-error) completion of a call to (Transaction).Commit() on this
-// Transaction, or the behavior is undefined. Read-only transactions do not
-// modify the database when committed and will have a committed version of
-// -1. Keep in mind that a transaction which reads keys and then sets them to
-// their current values may be optimized to a read-only transaction.
+// (Infrequently used) GetCommittedVersion returns the version number at which a
+// successful commit modified the database. This must be called only after the
+// successful (non-error) completion of a call to Commit on this Transaction, or
+// the behavior is undefined. Read-only transactions do not modify the database
+// when committed and will have a committed version of -1. Keep in mind that a
+// transaction which reads keys and then sets them to their current values may
+// be optimized to a read-only transaction.
 func (t Transaction) GetCommittedVersion() (int64, error) {
 	var version C.int64_t
 

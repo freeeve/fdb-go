@@ -394,7 +394,7 @@ func (dl DirectoryLayer) subdirNames(rtr fdb.ReadTransaction, node subspace.Subs
 	var ret []string
 
 	for ri.Advance() {
-		kv := ri.GetNextOrPanic()
+		kv := ri.GetOrPanic()
 
 		p, e := sd.Unpack(kv.Key)
 		if e != nil {
@@ -416,7 +416,7 @@ func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 	var ret []subspace.Subspace
 
 	for ri.Advance() {
-		kv := ri.GetNextOrPanic()
+		kv := ri.GetOrPanic()
 
 		ret = append(ret, dl.nodeWithPrefix(kv.Value))
 	}

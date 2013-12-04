@@ -38,7 +38,7 @@ type KeyValue struct {
 }
 
 // RangeOptions specify how a database range read operation is carried
-// out. RangeOptions objects are passed to GetRange() methods of Database,
+// out. RangeOptions objects are passed to GetRange methods of Database,
 // Transaction and Snapshot.
 //
 // The zero value of RangeOptions represents the default range read
@@ -73,7 +73,7 @@ type Range interface {
 // (exclusive) key. An ExactRange is provided to a method of the FoundationDB
 // API that does not already incur a read latency. If you need to specify an
 // exact range using key selectors, you must first resolve the selectors to keys
-// using the GetKey() method.
+// using the (Transaction).GetKey method.
 //
 // Any object that implements ExactRange also implements Range, and may be used
 // accordingly.
@@ -83,7 +83,7 @@ type ExactRange interface {
 	FDBRangeKeys() (begin, end KeyConvertible)
 
 	// An object that implements ExactRange must also implement Range
-	// (logically, by returning FirstGreaterOrEqual() of the keys returned by
+	// (logically, by returning FirstGreaterOrEqual of the keys returned by
 	// FDBRangeKeys).
 	Range
 }
@@ -181,10 +181,14 @@ func (rr RangeResult) Iterator() *RangeIterator {
 
 // RangeIterator returns the key-value pairs in the database (as KeyValue
 // objects) satisfying the range specified in a range read. RangeIterator is
-// constructed with the (RangeResult).Iterator() method.
+// constructed with the (RangeResult).Iterator method.
+//
+// You must call Advance and get a true result prior to calling GetWithError or
+// GetOrPanic.
 //
 // RangeIterator should not be copied or used concurrently from multiple
-// goroutines.
+// goroutines, but multiple RangeIterators may be constructed from a single
+// RangeResult and used concurrently.
 type RangeIterator struct {
 	t *transaction
 	f *futureKeyValueArray
@@ -201,7 +205,8 @@ type RangeIterator struct {
 
 // Advance attempts to advance the iterator to the next key-value pair. Advance
 // returns true if there are more key-value pairs satisfying the range, or false
-// if the range has been exhausted.
+// if the range has been exhausted. You must call this before every call to
+// GetWithError or GetOrPanic.
 func (ri *RangeIterator) Advance() bool {
 	if ri.done {
 		return false
@@ -245,11 +250,11 @@ func (ri *RangeIterator) fetchNextBatch() {
 	ri.f = &f
 }
 
-// GetNextWithError returns the next KeyValue in a range read, or an error if
-// one of the asynchronous operations associated with this range did not
-// successfully complete. The Advance method of this RangeIterator must have
-// returned true prior to calling GetNextWithError.
-func (ri *RangeIterator) GetNextWithError() (kv KeyValue, e error) {
+// GetWithError returns the next KeyValue in a range read, or an error if one of
+// the asynchronous operations associated with this range did not successfully
+// complete. The Advance method of this RangeIterator must have returned true
+// prior to calling GetWithError.
+func (ri *RangeIterator) GetWithError() (kv KeyValue, e error) {
 	if ri.err != nil {
 		e = ri.err
 		return
@@ -266,12 +271,12 @@ func (ri *RangeIterator) GetNextWithError() (kv KeyValue, e error) {
 	return
 }
 
-// GetNextOrPanic returns the next KeyValue in a range read, or panics if one of
-// the asynchronous operations associated with this range did not successfully
+// GetOrPanic returns the next KeyValue in a range read, or panics if one of the
+// asynchronous operations associated with this range did not successfully
 // complete. The Advance method of this RangeIterator must have returned true
-// prior to calling GetNextWithError.
-func (ri *RangeIterator) GetNextOrPanic() KeyValue {
-	kv, e := ri.GetNextWithError()
+// prior to calling GetWithError.
+func (ri *RangeIterator) GetOrPanic() KeyValue {
+	kv, e := ri.GetWithError()
 	if e != nil {
 		panic(e)
 	}

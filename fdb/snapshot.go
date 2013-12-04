@@ -58,24 +58,23 @@ func (s Snapshot) Snapshot() Snapshot {
 	return s
 }
 
-// Get is equivalent to (Transaction).Get(), performed as a snapshot read.
+// Get is equivalent to (Transaction).Get, performed as a snapshot read.
 func (s Snapshot) Get(key KeyConvertible) FutureValue {
 	return s.get(key.FDBKey(), 1)
 }
 
-// GetKey is equivalent to (Transaction).GetKey(), performed but as a snapshot
-// read.
+// GetKey is equivalent to (Transaction).GetKey, performed as a snapshot read.
 func (s Snapshot) GetKey(sel Selectable) FutureKey {
 	return s.getKey(sel.FDBKeySelector(), 1)
 }
 
-// GetRange is equivalent to (Transaction).GetRange(), performed but as a
-// snapshot read.
+// GetRange is equivalent to (Transaction).GetRange, performed as a snapshot
+// read.
 func (s Snapshot) GetRange(r Range, options RangeOptions) RangeResult {
 	return s.getRange(r, options, true)
 }
 
-// GetReadVersion is equivalent to (Transaction).GetReadVersion(), performed as
+// GetReadVersion is equivalent to (Transaction).GetReadVersion, performed as
 // a snapshot read.
 func (s Snapshot) GetReadVersion() FutureVersion {
 	return s.getReadVersion()

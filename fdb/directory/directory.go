@@ -98,6 +98,10 @@ func Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace
 	return root.Open(rt, path, layer)
 }
 
+func List(rt fdb.ReadTransactor, path []string) ([]string, error) {
+	return root.List(rt, path)
+}
+
 func Root() Directory {
 	return root
 }

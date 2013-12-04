@@ -141,7 +141,6 @@ func ExampleReadTransactor() {
 		return ret.([][]byte), nil
 	}
 
-
 	fmt.Println("Calling getOne with a database:")
 	_, e = getOne(db, fdb.Key("foo"))
 	if e != nil {
@@ -242,9 +241,9 @@ func ExampleRangeIterator() {
 	rr := tr.GetRange(fdb.KeyRange{fdb.Key(""), fdb.Key{0xFF}}, fdb.RangeOptions{})
 	ri := rr.Iterator()
 
-	// Advance() will return true until the iterator is exhausted
+	// Advance will return true until the iterator is exhausted
 	for ri.Advance() {
-		kv, e := ri.GetNextWithError()
+		kv, e := ri.GetWithError()
 		if e != nil {
 			fmt.Printf("Unable to read next value: %v\n", e)
 			return
