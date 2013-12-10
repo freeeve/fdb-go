@@ -172,7 +172,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 
 	op := string(inst[0].([]byte))
 	if sm.verbose {
-		fmt.Printf("Instruction is %s (%v)\n", op, sm.prefix)
+		fmt.Printf("%d. Instruction is %s (%v)\n", idx, op, sm.prefix)
 		fmt.Printf("Stack from [")
 		sm.dumpStack()
 		fmt.Printf(" ]\n")
