@@ -509,7 +509,10 @@ func (dl DirectoryLayer) checkVersion(rtr fdb.ReadTransaction, tr *fdb.Transacti
 func (dl DirectoryLayer) initializeDirectory(tr fdb.Transaction) {
 	buf := new(bytes.Buffer)
 
-	// FIXME: is ignoring errors OK here? What could really go wrong?
+	// bytes.Buffer claims that Write will always return a nil error, which
+	// means the error return here can only be an encoding issue. So long as we
+	// don't set our own versions to something completely invalid, we should be
+	// OK to ignore error returns.
 	binary.Write(buf, binary.LittleEndian, _MAJORVERSION)
 	binary.Write(buf, binary.LittleEndian, _MINORVERSION)
 	binary.Write(buf, binary.LittleEndian, _MICROVERSION)
