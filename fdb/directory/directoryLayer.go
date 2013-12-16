@@ -109,12 +109,12 @@ func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transacti
 		if e != nil {
 			return nil, fmt.Errorf("unable to allocate new directory prefix (%s)", e.Error())
 		}
-		prefix = newss.Bytes()
 
-		pr, e := fdb.PrefixRange(prefix)
-		if !isRangeEmpty(rtr, pr) {
+		if !isRangeEmpty(rtr, newss) {
 			return nil, fmt.Errorf("the database has keys stored at the prefix chosen by the automatic prefix allocator: %v", prefix)
 		}
+
+		prefix = newss.Bytes()
 
 		pf, e := dl.isPrefixFree(rtr.Snapshot(), prefix)
 		if e != nil { return nil, e }

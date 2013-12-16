@@ -60,9 +60,7 @@ type RangeOptions struct {
 }
 
 // A Range describes all keys between a begin (inclusive) and end (exclusive)
-// key selector. A Range is provided to a read method of the FoundationDB API,
-// and the key selectors are resolved to specific keys in the database while
-// satisfying the read.
+// key selector.
 type Range interface {
 	// FDBRangeKeySelectors returns a pair of key selectors that describe the
 	// beginning and end of a range.
@@ -70,10 +68,9 @@ type Range interface {
 }
 
 // An ExactRange describes all keys between a begin (inclusive) and end
-// (exclusive) key. An ExactRange is provided to a method of the FoundationDB
-// API that does not already incur a read latency. If you need to specify an
-// exact range using key selectors, you must first resolve the selectors to keys
-// using the (Transaction).GetKey method.
+// (exclusive) key. If you need to specify an ExactRange and you have only a
+// Range, you must resolve the selectors returned by
+// (Range).FDBRangeKeySelectors to keys using the (Transaction).GetKey method.
 //
 // Any object that implements ExactRange also implements Range, and may be used
 // accordingly.
@@ -297,8 +294,12 @@ func strinc(prefix []byte) ([]byte, error) {
 }
 
 // PrefixRange returns the KeyRange describing the range of keys k such that
-// bytes.HasPrefix(k, prefix) is true. PrefixRange returns an error if prefix
-// consists entirely of zero of more 0xFF bytes.
+// bytes.HasPrefix(k, prefix) is true. PrefixRange returns an error if prefix is
+// empty or entirely 0xFF bytes.
+//
+// Do not use PrefixRange on objects that already implement the Range or
+// ExactRange interfaces. The prefix range of the byte representation of these
+// objects may not correspond to their logical range.
 func PrefixRange(prefix []byte) (KeyRange, error) {
 	begin := make([]byte, len(prefix))
 	copy(begin, prefix)

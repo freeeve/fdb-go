@@ -107,7 +107,11 @@ func encodeInt(buf *bytes.Buffer, i int64) {
 // Pack returns a new byte slice encoding the provided tuple. Pack will panic if
 // the tuple contains an element of any type other than []byte,
 // fdb.KeyConvertible, string, int64, int or nil.
-func (t Tuple) Pack() fdb.Key {
+//
+// Tuple satisfies the fdb.KeyConvertible interface, so it is not necessary to
+// call Pack when using a Tuple with a FoundationDB API function that requires a
+// key.
+func (t Tuple) Pack() []byte {
 	buf := new(bytes.Buffer)
 
 	for i, e := range(t) {
@@ -129,7 +133,7 @@ func (t Tuple) Pack() fdb.Key {
 		}
 	}
 
-	return fdb.Key(buf.Bytes())
+	return buf.Bytes()
 }
 
 func findTerminator(b []byte) int {
@@ -188,10 +192,9 @@ func decodeInt(b []byte) (int64, int) {
 
 // Unpack returns the tuple encoded by the provided byte slice, or an error if
 // the key does not correctly encode a FoundationDB tuple.
-func Unpack(k fdb.KeyConvertible) (Tuple, error) {
+func Unpack(b []byte) (Tuple, error) {
 	var t Tuple
 
-	b := k.FDBKey()
 	var i int
 
 	for i < len(b) {
@@ -219,18 +222,26 @@ func Unpack(k fdb.KeyConvertible) (Tuple, error) {
 	return t, nil
 }
 
-// FIXME: document
+// FDBKey returns the packed representation of a Tuple, and allows Tuple to
+// satisfy the fdb.KeyConvertible interface. FDBKey will panic in the same
+// circumstances as Pack.
 func (t Tuple) FDBKey() fdb.Key {
 	return t.Pack()
 }
 
-// FIXME: document
+// FDBRangeKeys allows Tuple to satisfy the fdb.ExactRange interface. The range
+// represents all keys that encode tuples strictly starting with a Tuple (that
+// is, all tuples of greater length than the Tuple of which the Tuple is a
+// prefix).
 func (t Tuple) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 	p := t.Pack()
 	return fdb.Key(concat(p, 0x00)), fdb.Key(concat(p, 0xFF))
 }
 
-// FIXME: document
+// FDBRangeKeySelectors allows Tuple to satisfy the fdb.Range interface. The
+// range represents all keys that encode tuples strictly starting with a Tuple
+// (that is, all tuples of greater length than the Tuple of which the Tuple is a
+// prefix).
 func (t Tuple) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
 	b, e := t.FDBRangeKeys()
 	return fdb.FirstGreaterOrEqual(b), fdb.FirstGreaterOrEqual(e)

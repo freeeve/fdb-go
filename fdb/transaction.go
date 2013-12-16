@@ -34,10 +34,10 @@ import "C"
 // All ReadTransactions satisfy the ReadTransactor interface and may be used
 // with read-only transactional functions.
 type ReadTransaction interface {
-	Get(key KeyConvertible) FutureValue
+	Get(key KeyConvertible) FutureByteSlice
 	GetKey(sel Selectable) FutureKey
 	GetRange(r Range, options RangeOptions) RangeResult
-	GetReadVersion() FutureVersion
+	GetReadVersion() FutureInt64
 	GetDatabase() Database
 	Snapshot() Snapshot
 
@@ -228,14 +228,14 @@ func (t Transaction) Watch(key KeyConvertible) FutureNil {
 	return &futureNil{newFuture(C.fdb_transaction_watch(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 
-func (t *transaction) get(key []byte, snapshot int) FutureValue {
-	return &futureValue{future: newFuture(C.fdb_transaction_get(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(snapshot)))}
+func (t *transaction) get(key []byte, snapshot int) FutureByteSlice {
+	return &futureByteSlice{future: newFuture(C.fdb_transaction_get(t.ptr, byteSliceToPtr(key), C.int(len(key)), C.fdb_bool_t(snapshot)))}
 }
 
 // Get returns the (future) value associated with the specified key. The read is
 // performed asynchronously and does not block the calling goroutine. The future
 // will become ready when the read is complete.
-func (t Transaction) Get(key KeyConvertible) FutureValue {
+func (t Transaction) Get(key KeyConvertible) FutureByteSlice {
 	return t.get(key.FDBKey(), 0)
 }
 
@@ -270,14 +270,14 @@ func (t Transaction) GetRange(r Range, options RangeOptions) RangeResult {
 	return t.getRange(r, options, false)
 }
 
-func (t *transaction) getReadVersion() FutureVersion {
-	return &futureVersion{newFuture(C.fdb_transaction_get_read_version(t.ptr))}
+func (t *transaction) getReadVersion() FutureInt64 {
+	return &futureInt64{newFuture(C.fdb_transaction_get_read_version(t.ptr))}
 }
 
 // (Infrequently used) GetReadVersion returns the (future) transaction read version. The read is
 // performed asynchronously and does not block the calling goroutine. The future
 // will become ready when the read version is available.
-func (t Transaction) GetReadVersion() FutureVersion {
+func (t Transaction) GetReadVersion() FutureInt64 {
 	return t.getReadVersion()
 }
 
@@ -420,15 +420,15 @@ func (t Transaction) Options() TransactionOptions {
 	return TransactionOptions{t.transaction}
 }
 
-func localityGetAddressesForKey(t *transaction, key KeyConvertible) FutureStringArray {
+func localityGetAddressesForKey(t *transaction, key KeyConvertible) FutureStringSlice {
 	kb := key.FDBKey()
-	return &futureStringArray{newFuture(C.fdb_transaction_get_addresses_for_key(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
+	return &futureStringSlice{newFuture(C.fdb_transaction_get_addresses_for_key(t.ptr, byteSliceToPtr(kb), C.int(len(kb))))}
 }
 
 // LocalityGetAddressesForKey returns the (future) public network addresses of
 // each of the storage servers responsible for storing key and its associated
 // value. The read is performed asynchronously and does not block the calling
 // goroutine. The future will become ready when the read is complete.
-func (t Transaction) LocalityGetAddressesForKey(key KeyConvertible) FutureStringArray {
+func (t Transaction) LocalityGetAddressesForKey(key KeyConvertible) FutureStringSlice {
 	return localityGetAddressesForKey(t.transaction, key)
 }

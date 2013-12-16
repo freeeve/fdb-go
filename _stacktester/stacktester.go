@@ -63,7 +63,7 @@ func (sm *StackMachine) waitAndPop() (ret stackEntry) {
 	case fdb.FutureNil:
 		el.GetOrPanic()
 		ret.item = []byte("RESULT_NOT_PRESENT")
-	case fdb.FutureValue:
+	case fdb.FutureByteSlice:
 		v := el.GetOrPanic()
 		if v != nil {
 			ret.item = v
@@ -130,8 +130,8 @@ func (sm *StackMachine) dumpStack() {
 			fmt.Printf(" %d", el)
 		case fdb.FutureNil:
 			fmt.Printf(" FutureNil")
-		case fdb.FutureValue:
-			fmt.Printf(" FutureValue")
+		case fdb.FutureByteSlice:
+			fmt.Printf(" FutureByteSlice")
 		case fdb.FutureKey:
 			fmt.Printf(" FutureKey")
 		case []byte:

@@ -59,7 +59,7 @@ func (s Snapshot) Snapshot() Snapshot {
 }
 
 // Get is equivalent to (Transaction).Get, performed as a snapshot read.
-func (s Snapshot) Get(key KeyConvertible) FutureValue {
+func (s Snapshot) Get(key KeyConvertible) FutureByteSlice {
 	return s.get(key.FDBKey(), 1)
 }
 
@@ -76,7 +76,7 @@ func (s Snapshot) GetRange(r Range, options RangeOptions) RangeResult {
 
 // GetReadVersion is equivalent to (Transaction).GetReadVersion, performed as
 // a snapshot read.
-func (s Snapshot) GetReadVersion() FutureVersion {
+func (s Snapshot) GetReadVersion() FutureInt64 {
 	return s.getReadVersion()
 }
 

@@ -31,7 +31,7 @@ type node struct {
 	subspace subspace.Subspace
 	path []string
 	targetPath []string
-	_layer fdb.FutureValue
+	_layer fdb.FutureByteSlice
 }
 
 func (n *node) exists() bool {
@@ -48,7 +48,7 @@ func (n *node) prefetchMetadata(rtr fdb.ReadTransaction) *node {
 	return n
 }
 
-func (n *node) layer(rtr fdb.ReadTransaction) fdb.FutureValue {
+func (n *node) layer(rtr fdb.ReadTransaction) fdb.FutureByteSlice {
 	if n._layer == nil {
 		fv := rtr.Get(n.subspace.Sub([]byte("layer")))
 		n._layer = fv
