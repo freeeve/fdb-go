@@ -393,15 +393,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		}
 		sm.store(idx, []byte("SET_CONFLICT_KEY"))
 	case op == "ATOMIC_OP":
-		opname := strings.Title(strings.ToLower(string(sm.waitAndPop().item.([]byte))))
-		switch opname {
-		case "And":
-			opname = "BitAnd"
-		case "Or":
-			opname = "BitOr"
-		case "Xor":
-			opname = "BitXor"
-		}
+		opname := strings.Replace(strings.Title(strings.Replace(strings.ToLower(string(sm.waitAndPop().item.([]byte))), "_", " ", -1)), " ", "", -1)
 		key := fdb.Key(sm.waitAndPop().item.([]byte))
 		value := sm.waitAndPop().item.([]byte)
 		sm.executeMutation(t, func (tr fdb.Transaction) (interface{}, error) {
