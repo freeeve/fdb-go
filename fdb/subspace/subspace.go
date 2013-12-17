@@ -19,13 +19,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Package subspace provides an implementation of FoundationDB
-// subspaces. Subspaces provide a way to define namespaces for different
-// categories of data. As such, they are a basic technique of data modeling
-// (https://foundationdb.com/documentation/data-modeling.html#subspaces-of-keys).
-// Subspaces use the ordering of tuple elements defined by the FoundationDB
-// tuple package to structure keyspace. As a best practice, API clients should
-// use at least one subspace for application data.
+// Package subspace provides a convenient way to use FoundationDB tuples to
+// define namespaces for different categories of data. The namespace is
+// specified by a prefix tuple which is prepended to all tuples packed by the
+// subspace. When unpacking a key with the subspace, the prefix tuple will be
+// removed from the result.
+//
+// As a best practice, API clients should use at least one subspace for
+// application data. For general guidance on subspace usage, see the Subspaces
+// section of the Developer Guide
+// (https://foundationdb.com/documentation/developer-guide.html#developer-guide-sub-keyspaces).
 package subspace
 
 import (
@@ -40,10 +43,10 @@ import (
 type Subspace interface {
 	// Sub returns a new Subspace whose prefix extends this Subspace with the
 	// encoding of the provided element(s). If any of the elements are not a
-	// valid tuple.TupleElement, a runtime panic will occur.
+	// valid tuple.TupleElement, Sub will panic.
 	Sub(el ...tuple.TupleElement) Subspace
 
-	// Bytes returns the literal bytes of the prefix of this subspace.
+	// Bytes returns the literal bytes of the prefix of this Subspace.
 	Bytes() []byte
 
 	// Pack returns the key encoding the specified Tuple with the prefix of this
@@ -63,9 +66,10 @@ type Subspace interface {
 	// FoundationDB keys (corresponding to the prefix of this Subspace).
 	fdb.KeyConvertible
 
-	// All Subspaces implement fdb.ExactRange and may be used as ranges
-	// (corresponding to all keys logically in this Subspace).
+	// All Subspaces implement fdb.ExactRange and fdb.Range, and describe all
+	// keys logically in this Subspace.
 	fdb.ExactRange
+	fdb.Range
 }
 
 type subspace struct {
