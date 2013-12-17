@@ -191,5 +191,4 @@ package.
 The current atomic operations in this API are Add, BitAnd, BitOr and BitXor (all
 methods on Transaction).
 */
-
- package fdb
+package fdb
