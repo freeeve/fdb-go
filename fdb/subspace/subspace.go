@@ -69,7 +69,6 @@ type Subspace interface {
 	// All Subspaces implement fdb.ExactRange and fdb.Range, and describe all
 	// keys logically in this Subspace.
 	fdb.ExactRange
-	fdb.Range
 }
 
 type subspace struct {
