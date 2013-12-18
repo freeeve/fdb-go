@@ -172,7 +172,13 @@ func (d Database) ReadTransact(f func(ReadTransaction) (interface{}, error)) (in
 	wrapped := func() (ret interface{}, e error) {
 		defer panicToError(&e)
 
-		return f(tr)
+		ret, e = f(tr)
+
+		if e == nil {
+			e = tr.Commit().GetWithError()
+		}
+
+		return
 	}
 
 	return retryable(wrapped, tr.OnError)
