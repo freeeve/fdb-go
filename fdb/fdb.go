@@ -32,6 +32,7 @@ import (
 	"runtime"
 	"sync"
 	"unsafe"
+	"fmt"
 )
 
 /* Would put this in futures.go but for the documented issue with
@@ -122,6 +123,9 @@ func APIVersion(version int) error {
 	}
 
 	if e := C.fdb_select_api_version_impl(C.int(version), 200); e != 0 {
+		if e == 2203 {
+			return fmt.Errorf("API version %d not supported by the installed FoundationDB C library", version)
+		}
 		return Error{int(e)}
 	}
 
