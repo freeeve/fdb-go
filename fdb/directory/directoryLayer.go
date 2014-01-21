@@ -31,7 +31,7 @@ import (
 	"errors"
 )
 
-type DirectoryLayer struct {
+type directoryLayer struct {
 	nodeSS subspace.Subspace
 	contentSS subspace.Subspace
 
@@ -43,8 +43,20 @@ type DirectoryLayer struct {
 	path []string
 }
 
-func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace, allowManualPrefixes bool) DirectoryLayer {
-	var dl DirectoryLayer
+// NewDirectoryLayer returns a new root directory (as a Directory). The
+// subspaces nodeSS and contentSS control where the directory metadata and
+// contents are stored. The default root directory has a nodeSS of
+// subspace.FromBytes([]byte{0xFE}) and a contentSS of
+// subspace.AllKeys(). Specifying more restrictive values for nodeSS and
+// contentSS will allow using the directory layer alongside other content in a
+// database.
+//
+// If allowManualPrefixes is false, all calls to CreatePrefix on the returned
+// Directory (or any subdirectories) will fail, and all directory prefixes will
+// be automatically allocated. The default root directory does not allow manual
+// prefixes.
+func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace, allowManualPrefixes bool) Directory {
+	var dl directoryLayer
 
 	dl.nodeSS = nodeSS
 	dl.contentSS = contentSS
@@ -57,7 +69,7 @@ func NewDirectoryLayer(nodeSS, contentSS subspace.Subspace, allowManualPrefixes 
 	return dl
 }
 
-func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate, allowOpen bool) (DirectorySubspace, error) {
+func (dl directoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transaction, path []string, layer []byte, prefix []byte, allowCreate, allowOpen bool) (DirectorySubspace, error) {
 	if e := dl.checkVersion(rtr, nil); e != nil {
 		return nil, e
 	}
@@ -82,7 +94,7 @@ func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transacti
 			if e != nil {
 				return nil, e
 			}
-			return enc.(DirectoryPartition).createOrOpen(rtr, tr, subpath, layer, prefix, allowCreate, allowOpen)
+			return enc.(directoryPartition).createOrOpen(rtr, tr, subpath, layer, prefix, allowCreate, allowOpen)
 		}
 
 		if !allowOpen {
@@ -157,7 +169,7 @@ func (dl DirectoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transacti
 	return dl.contentsOfNode(node, path, layer)
 }
 
-func (dl DirectoryLayer) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+func (dl directoryLayer) CreateOrOpen(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		return dl.createOrOpen(tr, &tr, path, layer, nil, true, true)
 	})
@@ -167,7 +179,7 @@ func (dl DirectoryLayer) CreateOrOpen(t fdb.Transactor, path []string, layer []b
 	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
+func (dl directoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		return dl.createOrOpen(tr, &tr, path, layer, nil, true, false)
 	})
@@ -177,7 +189,7 @@ func (dl DirectoryLayer) Create(t fdb.Transactor, path []string, layer []byte) (
 	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
+func (dl directoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []byte, prefix []byte) (DirectorySubspace, error) {
 	if prefix == nil {
 		prefix = []byte{}
 	}
@@ -190,7 +202,7 @@ func (dl DirectoryLayer) CreatePrefix(t fdb.Transactor, path []string, layer []b
 	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error) {
+func (dl directoryLayer) Open(rt fdb.ReadTransactor, path []string, layer []byte) (DirectorySubspace, error) {
 	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 		return dl.createOrOpen(rtr, nil, path, layer, nil, false, true)
 	})
@@ -200,7 +212,7 @@ func (dl DirectoryLayer) Open(rt fdb.ReadTransactor, path []string, layer []byte
 	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
+func (dl directoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
 	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 		if e := dl.checkVersion(rtr, nil); e != nil {
 			return false, e
@@ -227,7 +239,7 @@ func (dl DirectoryLayer) Exists(rt fdb.ReadTransactor, path []string) (bool, err
 	return r.(bool), nil
 }
 
-func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, error) {
+func (dl directoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, error) {
 	r, e := rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 		if e := dl.checkVersion(rtr, nil); e != nil {
 			return nil, e
@@ -254,11 +266,11 @@ func (dl DirectoryLayer) List(rt fdb.ReadTransactor, path []string) ([]string, e
 	return r.([]string), nil
 }
 
-func (dl DirectoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
+func (dl directoryLayer) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
 	return nil, errors.New("the root directory cannot be moved")
 }
 
-func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error) {
+func (dl directoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []string) (DirectorySubspace, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		if e := dl.checkVersion(tr, &tr); e != nil {
 			return nil, e
@@ -316,7 +328,7 @@ func (dl DirectoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []stri
 	return r.(DirectorySubspace), nil
 }
 
-func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
+func (dl directoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 	r, e := t.Transact(func (tr fdb.Transaction) (interface{}, error) {
 		if e := dl.checkVersion(tr, &tr); e != nil {
 			return false, e
@@ -337,7 +349,7 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 			if e != nil {
 				return false, e
 			}
-			return nc.(DirectoryPartition).Remove(tr, node.getPartitionSubpath())
+			return nc.(directoryPartition).Remove(tr, node.getPartitionSubpath())
 		}
 
 		if e := dl.removeRecursive(tr, node.subspace); e != nil {
@@ -353,7 +365,7 @@ func (dl DirectoryLayer) Remove(t fdb.Transactor, path []string) (bool, error) {
 	return r.(bool), nil
 }
 
-func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) error {
+func (dl directoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subspace) error {
 	nodes := dl.subdirNodes(tr, node)
 	for i := range nodes {
 		if e := dl.removeRecursive(tr, nodes[i]); e != nil {
@@ -372,20 +384,20 @@ func (dl DirectoryLayer) removeRecursive(tr fdb.Transaction, node subspace.Subsp
 	return nil
 }
 
-func (dl DirectoryLayer) removeFromParent(tr fdb.Transaction, path []string) {
+func (dl directoryLayer) removeFromParent(tr fdb.Transaction, path []string) {
 	parent := dl.find(tr, path[:len(path)-1])
 	tr.Clear(parent.subspace.Sub(_SUBDIRS, path[len(path)-1]))
 }
 
-func (dl DirectoryLayer) GetLayer() []byte {
+func (dl directoryLayer) GetLayer() []byte {
 	return []byte{}
 }
 
-func (dl DirectoryLayer) GetPath() []string {
+func (dl directoryLayer) GetPath() []string {
 	return dl.path
 }
 
-func (dl DirectoryLayer) subdirNames(rtr fdb.ReadTransaction, node subspace.Subspace) ([]string, error) {
+func (dl directoryLayer) subdirNames(rtr fdb.ReadTransaction, node subspace.Subspace) ([]string, error) {
 	sd := node.Sub(_SUBDIRS)
 
 	rr := rtr.GetRange(sd, fdb.RangeOptions{})
@@ -407,7 +419,7 @@ func (dl DirectoryLayer) subdirNames(rtr fdb.ReadTransaction, node subspace.Subs
 	return ret, nil
 }
 
-func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace) []subspace.Subspace {
+func (dl directoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace) []subspace.Subspace {
 	sd := node.Sub(_SUBDIRS)
 
 	rr := tr.GetRange(sd, fdb.RangeOptions{})
@@ -424,7 +436,7 @@ func (dl DirectoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 	return ret
 }
 
-func (dl DirectoryLayer) nodeContainingKey(rtr fdb.ReadTransaction, key []byte) (subspace.Subspace, error) {
+func (dl directoryLayer) nodeContainingKey(rtr fdb.ReadTransaction, key []byte) (subspace.Subspace, error) {
 	if bytes.HasPrefix(key, dl.nodeSS.Bytes()) {
 		return dl.rootNode, nil
 	}
@@ -447,7 +459,7 @@ func (dl DirectoryLayer) nodeContainingKey(rtr fdb.ReadTransaction, key []byte) 
 	return nil, nil
 }
 
-func (dl DirectoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (bool, error) {
+func (dl directoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (bool, error) {
 	if len(prefix) == 0 {
 		return false, nil
 	}
@@ -473,7 +485,7 @@ func (dl DirectoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (b
 	return true, nil
 }
 
-func (dl DirectoryLayer) checkVersion(rtr fdb.ReadTransaction, tr *fdb.Transaction) error {
+func (dl directoryLayer) checkVersion(rtr fdb.ReadTransaction, tr *fdb.Transaction) error {
 	version := rtr.Get(dl.rootNode.Sub([]byte("version"))).GetOrPanic()
 
 	if version == nil {
@@ -506,7 +518,7 @@ func (dl DirectoryLayer) checkVersion(rtr fdb.ReadTransaction, tr *fdb.Transacti
 	return nil
 }
 
-func (dl DirectoryLayer) initializeDirectory(tr fdb.Transaction) {
+func (dl directoryLayer) initializeDirectory(tr fdb.Transaction) {
 	buf := new(bytes.Buffer)
 
 	// bytes.Buffer claims that Write will always return a nil error, which
@@ -520,7 +532,7 @@ func (dl DirectoryLayer) initializeDirectory(tr fdb.Transaction) {
 	tr.Set(dl.rootNode.Sub([]byte("version")), buf.Bytes())
 }
 
-func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, layer []byte) (DirectorySubspace, error) {
+func (dl directoryLayer) contentsOfNode(node subspace.Subspace, path []string, layer []byte) (DirectorySubspace, error) {
 	p, e := dl.nodeSS.Unpack(node)
 	if e != nil {
 		return nil, e
@@ -538,20 +550,20 @@ func (dl DirectoryLayer) contentsOfNode(node subspace.Subspace, path []string, l
 		nssb := make([]byte, len(pb) + 1)
 		copy(nssb, pb)
 		nssb[len(pb)] = 0xFE
-		ndl := NewDirectoryLayer(subspace.FromBytes(nssb), ss, false)
+		ndl := NewDirectoryLayer(subspace.FromBytes(nssb), ss, false).(directoryLayer)
 		ndl.path = newPath
-		return DirectoryPartition{ndl, dl}, nil
+		return directoryPartition{ndl, dl}, nil
 	} else {
 		return directorySubspace{ss, dl, newPath, layer}, nil
 	}
 }
 
-func (dl DirectoryLayer) nodeWithPrefix(prefix []byte) subspace.Subspace {
+func (dl directoryLayer) nodeWithPrefix(prefix []byte) subspace.Subspace {
 	if prefix == nil { return nil }
 	return dl.nodeSS.Sub(prefix)
 }
 
-func (dl DirectoryLayer) find(rtr fdb.ReadTransaction, path []string) *node {
+func (dl directoryLayer) find(rtr fdb.ReadTransaction, path []string) *node {
 	n := &node{dl.rootNode, []string{}, path, nil}
 	for i := range path {
 		n = &node{dl.nodeWithPrefix(rtr.Get(n.subspace.Sub(_SUBDIRS, path[i])).GetOrPanic()), path[:i+1], path, nil}
@@ -562,7 +574,7 @@ func (dl DirectoryLayer) find(rtr fdb.ReadTransaction, path []string) *node {
 	return n
 }
 
-func (dl DirectoryLayer) partitionSubpath(lpath, rpath []string) []string {
+func (dl directoryLayer) partitionSubpath(lpath, rpath []string) []string {
 	r := make([]string, len(lpath) - len(dl.path) + len(rpath))
 	copy(r, lpath[len(dl.path):])
 	copy(r[len(lpath) - len(dl.path):], rpath)

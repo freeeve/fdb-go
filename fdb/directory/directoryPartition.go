@@ -27,65 +27,65 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb/tuple"
 )
 
-type DirectoryPartition struct {
-	DirectoryLayer
-	parentDirectoryLayer DirectoryLayer
+type directoryPartition struct {
+	directoryLayer
+	parentDirectoryLayer directoryLayer
 }
 
-func (dp DirectoryPartition) Sub(el ...tuple.TupleElement) subspace.Subspace {
+func (dp directoryPartition) Sub(el ...tuple.TupleElement) subspace.Subspace {
 	panic("cannot open subspace in the root of a directory partition")
 }
 
-func (dp DirectoryPartition) Bytes() []byte {
+func (dp directoryPartition) Bytes() []byte {
 	panic("cannot get key for the root of a directory partition")
 }
 
-func (dp DirectoryPartition) Pack(t tuple.Tuple) fdb.Key {
+func (dp directoryPartition) Pack(t tuple.Tuple) fdb.Key {
 	panic("cannot pack keys using the root of a directory partition")
 }
 
-func (dp DirectoryPartition) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
+func (dp directoryPartition) Unpack(k fdb.KeyConvertible) (tuple.Tuple, error) {
 	panic("cannot unpack keys using the root of a directory partition")
 }
 
-func (dp DirectoryPartition) Contains(k fdb.KeyConvertible) bool {
+func (dp directoryPartition) Contains(k fdb.KeyConvertible) bool {
 	panic("cannot check whether a key belongs to the root of a directory partition")
 }
 
-func (dp DirectoryPartition) FDBKey() fdb.Key {
+func (dp directoryPartition) FDBKey() fdb.Key {
 	panic("cannot use the root of a directory partition as a key")
 }
 
-func (dp DirectoryPartition) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
+func (dp directoryPartition) FDBRangeKeys() (fdb.KeyConvertible, fdb.KeyConvertible) {
 	panic("cannot get range for the root of a directory partition")
 }
 
-func (dp DirectoryPartition) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
+func (dp directoryPartition) FDBRangeKeySelectors() (fdb.Selectable, fdb.Selectable) {
 	panic("cannot get range for the root of a directory partition")
 }
 
-func (dp DirectoryPartition) GetLayer() []byte {
+func (dp directoryPartition) GetLayer() []byte {
 	return []byte("partition")
 }
 
-func (dp DirectoryPartition) getLayerForPath(path []string) DirectoryLayer {
+func (dp directoryPartition) getLayerForPath(path []string) directoryLayer {
 	if len(path) == 0 {
 		return dp.parentDirectoryLayer
 	} else {
-		return dp.DirectoryLayer
+		return dp.directoryLayer
 	}
 }
 
-func (dp DirectoryPartition) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
+func (dp directoryPartition) MoveTo(t fdb.Transactor, newAbsolutePath []string) (DirectorySubspace, error) {
 	return moveTo(t, dp.parentDirectoryLayer, dp.path, newAbsolutePath)
 }
 
-func (dp DirectoryPartition) Remove(t fdb.Transactor, path []string) (bool, error) {
+func (dp directoryPartition) Remove(t fdb.Transactor, path []string) (bool, error) {
 	dl := dp.getLayerForPath(path)
 	return dl.Remove(t, dl.partitionSubpath(dp.path, path))
 }
 
-func (dp DirectoryPartition) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
+func (dp directoryPartition) Exists(rt fdb.ReadTransactor, path []string) (bool, error) {
 	dl := dp.getLayerForPath(path)
 	return dl.Exists(rt, dl.partitionSubpath(dp.path, path))
 }
