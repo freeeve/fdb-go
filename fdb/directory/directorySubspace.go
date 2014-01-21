@@ -26,6 +26,10 @@ import (
 	"github.com/FoundationDB/fdb-go/fdb/subspace"
 )
 
+// DirectorySubspace represents a Directory that may also be used as a Subspace
+// to store key/value pairs. Subdirectories of a root directory (as returned by
+// Root or NewDirectoryLayer) are DirectorySubspaces, and provide all methods of
+// the Directory and subspace.Subspace interfaces.
 type DirectorySubspace interface {
 	subspace.Subspace
 	Directory
