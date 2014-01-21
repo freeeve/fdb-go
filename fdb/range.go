@@ -116,6 +116,9 @@ func (sr SelectorRange) FDBRangeKeySelectors() (Selectable, Selectable) {
 
 // RangeResult is a handle to the asynchronous result of a range
 // read. RangeResult is safe for concurrent use by multiple goroutines.
+//
+// A RangeResult should not be returned from a transactional function passed to
+// the Transact method of a Transactor.
 type RangeResult struct {
 	t *transaction
 	sr SelectorRange
@@ -127,7 +130,8 @@ type RangeResult struct {
 // GetSliceWithError returns a slice of KeyValue objects satisfying the range
 // specified in the read that returned this RangeResult, or an error if any of
 // the asynchronous operations associated with this result did not successfully
-// complete. The current goroutine will be blocked until the read has completed.
+// complete. The current goroutine will be blocked until all reads have
+// completed.
 func (rr RangeResult) GetSliceWithError() ([]KeyValue, error) {
 	var ret []KeyValue
 
@@ -154,7 +158,8 @@ func (rr RangeResult) GetSliceWithError() ([]KeyValue, error) {
 // GetSliceOrPanic returns a slice of KeyValue objects satisfying the range
 // specified in the read that returned this RangeResult, or panics if any of the
 // asynchronous operations associated with this result did not successfully
-// complete. The current goroutine will be blocked until the read has completed.
+// complete. The current goroutine will be blocked until all reads have
+// completed.
 func (rr RangeResult) GetSliceOrPanic() []KeyValue {
 	kvs, e := rr.GetSliceWithError()
 	if e != nil {
@@ -185,7 +190,8 @@ func (rr RangeResult) Iterator() *RangeIterator {
 //
 // RangeIterator should not be copied or used concurrently from multiple
 // goroutines, but multiple RangeIterators may be constructed from a single
-// RangeResult and used concurrently.
+// RangeResult and used concurrently. RangeIterator should not be returned from
+// a transactional function passed to the Transact method of a Transactor.
 type RangeIterator struct {
 	t *transaction
 	f *futureKeyValueArray
