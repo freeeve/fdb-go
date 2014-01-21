@@ -74,10 +74,17 @@ A basic interaction with the FoundationDB API is demonstrated below:
 
 Futures
 
-FIXME: I'm going to add some text here about futures in general, how they work
-in this package, when they may or may not block, etc. Also a specific warning
-about returning potentially unready Futures from transactional functions (the
-transaction may be finalized cancelling the future before it becomes ready).
+Many functions in this package are asynchronous and return Future objects. A
+Future represents a value (or error) to be available at some later
+time. Functions documented as blocking on a Future will block the calling
+goroutine until the Future is ready (although if the Future is already ready,
+the call will not block at all). While a goroutine is blocked on a Future, other
+goroutines are free to execute and interact with the FoundationDB API.
+
+It is possible (and often recommended) to call several asynchronous operations
+and have multiple Future objects outstanding inside a single goroutine. All
+operations will execute in parallel, and the calling goroutine will not block
+until a blocking method on any one of the Futures is called.
 
 On Panics
 
@@ -151,9 +158,24 @@ of (Transaction).Transact; all other values will be re-panicked.
 
 Transactions and Goroutines
 
-FIXME: I'm going to add a section talking about the danger of using goroutines
-inside transactional functions in combination with GetOrPanic methods. Although
-perhaps this text belongs in the Transactor section/example(s)?
+When using a Transactor in the fdb package, particular care must be taken if
+goroutines are created inside of the function passed to the Transact method. Any
+panic from the goroutine will not be recovered by Transact, and (unless
+otherwise recovered) will result in the termination of that goroutine.
+
+Furthermore, any errors returned or panicked by fdb methods called in the
+goroutine must be safely returned to the function passed to Transact, and either
+returned or panicked, to allow Transact to appropriately retry or terminate the
+transactional function.
+
+Lastly, a transactional function may be retried indefinitely. It is advisable to
+make sure any goroutines created during the transactional function have
+completed before returning from the transactional function, or a potentially
+unbounded number of goroutines may be created.
+
+Given these complexities, it is generally best practice to use a single
+goroutine for each logical thread of interaction with FoundationDB, and allow
+each goroutine to block when necessary to wait for Futures to become ready.
 
 Streaming Modes
 
