@@ -25,7 +25,7 @@
 //
 // For general guidance on directory usage, see the Directories section of the
 // Developer Guide
-// (http://foundationdb.com/documentation/developer-guide.html#developer-guide-directories).
+// (https://foundationdb.com/documentation/developer-guide.html#developer-guide-directories).
 //
 // Directories are identified by hierarchical paths analogous to the paths in a
 // Unix-like file system. A path is represented as a slice of strings. Each
