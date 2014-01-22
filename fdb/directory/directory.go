@@ -54,7 +54,7 @@ const (
 )
 
 // Directory represents a subspace of keys in a FoundationDB database,
-// identified by a heirarchical path.
+// identified by a hierarchical path.
 type Directory interface {
 	// CreateOrOpen opens the directory specified by path (relative to this
 	// Directory), and returns the directory and its contents as a
