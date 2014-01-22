@@ -55,6 +55,13 @@ func writeOptString(receiver string, function string, opt Option) {
 `, receiver, function, opt.Code)
 }
 
+func writeOptBytes(receiver string, function string, opt Option) {
+	fmt.Printf(`func (o %s) %s(param []byte) error {
+	return o.setOpt(%d, param)
+}
+`, receiver, function, opt.Code)
+}
+
 func writeOptInt(receiver string, function string, opt Option) {
 	fmt.Printf(`func (o %s) %s(param int64) error {
 	b, e := int64ToBytes(param)
@@ -90,6 +97,8 @@ func writeOpt(receiver string, opt Option) {
 	switch opt.ParamType {
 	case "String":
 		writeOptString(receiver, function, opt)
+	case "Bytes":
+		writeOptBytes(receiver, function, opt)
 	case "Int":
 		writeOptInt(receiver, function, opt)
 	case "":
@@ -100,7 +109,7 @@ func writeOpt(receiver string, opt Option) {
 }
 
 func translateName(old string) string {
-	return strings.Replace(strings.Title(strings.ToLower(strings.Replace(old, "_", " ", -1))), " ", "", -1)
+	return strings.Replace(strings.Title(strings.Replace(old, "_", " ", -1)), " ", "", -1)
 }
 
 func lowerFirst (s string) string {

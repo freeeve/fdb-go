@@ -36,6 +36,48 @@ func (o NetworkOptions) SetKnob(param string) error {
 	return o.setOpt(40, []byte(param))
 }
 
+// Set plugin to load for TLS functionality
+//
+// Parameter: file path
+func (o NetworkOptions) SetTLSPlugin(param string) error {
+	return o.setOpt(41, []byte(param))
+}
+
+// Set bytes from which to load root certificate and public key for TLS connections
+//
+// Parameter: certificates
+func (o NetworkOptions) SetTLSCertBytes(param []byte) error {
+	return o.setOpt(42, param)
+}
+
+// Set file from which to load root certificate and public key for TLS connections
+//
+// Parameter: file path
+func (o NetworkOptions) SetTLSCertPath(param string) error {
+	return o.setOpt(43, []byte(param))
+}
+
+// Set bytes from which to load the private key for TLS connections
+//
+// Parameter: key
+func (o NetworkOptions) SetTLSKeyBytes(param []byte) error {
+	return o.setOpt(45, param)
+}
+
+// Set file from which to load the private key for TLS connections
+//
+// Parameter: file path
+func (o NetworkOptions) SetTLSKeyPath(param string) error {
+	return o.setOpt(46, []byte(param))
+}
+
+// Set the pattern with which to verify certificates of TLS peers
+//
+// Parameter: verification pattern
+func (o NetworkOptions) SetTLSVerifyPeers(param []byte) error {
+	return o.setOpt(47, param)
+}
+
 // Set the size of the client location cache. Raising this value can boost performance in very large databases where clients access data in a near-random pattern. Defaults to 100000.
 //
 // Parameter: Max location cache entries
@@ -82,6 +124,7 @@ func (o TransactionOptions) SetCausalReadRisky() error {
 	return o.setOpt(20, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetCausalReadDisable() error {
 	return o.setOpt(21, nil)
 }
@@ -91,6 +134,7 @@ func (o TransactionOptions) SetNextWriteNoWriteConflictRange() error {
 	return o.setOpt(30, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetCheckWritesEnable() error {
 	return o.setOpt(50, nil)
 }
@@ -105,14 +149,17 @@ func (o TransactionOptions) SetReadAheadDisable() error {
 	return o.setOpt(52, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetDurabilityDatacenter() error {
 	return o.setOpt(110, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetDurabilityRisky() error {
 	return o.setOpt(120, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetDurabilityDevNullIsWebScale() error {
 	return o.setOpt(130, nil)
 }
@@ -137,6 +184,7 @@ func (o TransactionOptions) SetAccessSystemKeys() error {
 	return o.setOpt(301, nil)
 }
 
+// Not yet implemented.
 func (o TransactionOptions) SetDebugDump() error {
 	return o.setOpt(400, nil)
 }
