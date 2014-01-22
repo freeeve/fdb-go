@@ -347,6 +347,12 @@ func (t *transaction) getKey(sel KeySelector, snapshot int) FutureKey {
 // GetKey returns the future key referenced by the provided key selector. The
 // read is performed asynchronously and does not block the calling
 // goroutine. The future will become ready when the read version is available.
+//
+// By default, the key is cached for the duration of the transaction, providing
+// a potential performance benefit. However, the value of the key is also
+// retrieved, using network bandwidth. Invoking
+// (TransactionOptions).SetReadYourWritesDisable will avoid both the caching and
+// the increased network bandwidth.
 func (t Transaction) GetKey(sel Selectable) FutureKey {
 	return t.getKey(sel.FDBKeySelector(), 0)
 }
