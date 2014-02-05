@@ -44,24 +44,16 @@ A basic interaction with the FoundationDB API is demonstrated below:
     )
 
     func main() {
-        var e error
-
         // Different API versions may expose different runtime behaviors.
-        e = fdb.APIVersion(200)
-        if e != nil {
-            log.Fatalf("Unable to load FDB at API version 200 (%v)", e)
-        }
+        fdb.MustAPIVersion(200)
 
         // Open the default database from the system cluster
-        db, e := fdb.OpenDefault()
-        if e != nil {
-            log.Fatalf("Unable to open default FDB database (%v)", e)
-        }
+        db := fdb.MustOpenDefault()
 
         // Database reads and writes happen inside transactions
         ret, e := db.Transact(func(tr fdb.Transaction) (interface{}, error) {
             tr.Set(fdb.Key("hello"), []byte("world"))
-            return tr.Get(fdb.Key("foo")).GetOrPanic(), nil
+            return tr.Get(fdb.Key("foo")).MustGet(), nil
             // db.Transact automatically commits (and if necessary,
             // retries) the transaction
         })
@@ -102,13 +94,13 @@ implemented using only error values:
         // Both reads are being carried out in parallel
 
         // Get the first value (or any error)
-        valueOne, e := futureValueOne.GetWithError()
+        valueOne, e := futureValueOne.Get()
         if e != nil {
             return nil, e
         }
 
         // Get the second value (or any error)
-        valueTwo, e := futureValueTwo.GetWithError()
+        valueTwo, e := futureValueTwo.Get()
         if e != nil {
             return nil, e
         }
@@ -126,9 +118,9 @@ caller of Transact.
 
 In practice, checking for an error from every asynchronous future type in the
 FoundationDB API quickly becomes frustrating. As a convenience, every Future
-type also has a GetOrPanic method, which returns the same type and value as
-GetWithError, but exposes FoundationDB Errors via a panic rather than an
-explicitly returned error. The above example may be rewritten as:
+type also has a MustGet method, which returns the same type and value as Get,
+but exposes FoundationDB Errors via a panic rather than an explicitly returned
+error. The above example may be rewritten as:
 
     ret, e := db.Transact(func (tr Transaction) (interface{}, error) {
         // FoundationDB futures represent a value that will become available
@@ -138,9 +130,9 @@ explicitly returned error. The above example may be rewritten as:
         // Both reads are being carried out in parallel
 
         // Get the first value
-        valueOne := futureValueOne.GetOrPanic()
+        valueOne := futureValueOne.MustGet()
         // Get the second value
-        valueTwo := futureValueTwo.GetOrPanic()
+        valueTwo := futureValueTwo.MustGet()
 
         // Return the two values
         return []string{valueOne, valueTwo}, nil
@@ -149,7 +141,7 @@ explicitly returned error. The above example may be rewritten as:
 Any panic that occurs during execution of the caller-provided function will be
 recovered by the (Database).Transact method. If the error is an FDB Error, it
 will either result in a retry of the function or be returned by Transact. If the
-error is any other type (panics from code other than GetOrPanic), Transact will
+error is any other type (panics from code other than MustGet), Transact will
 re-panic the original value.
 
 Note that (Transaction).Transact also recovers panics, but does not itself

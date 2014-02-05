@@ -94,7 +94,7 @@ func (hca highContentionAllocator) allocate(tr fdb.Transaction, s subspace.Subsp
 		// subsequent risk of conflict for this transaction.
 		candidate := rand.Int63n(window) + start
 		key := hca.recent.Sub(candidate)
-		if tr.Get(key).GetOrPanic() == nil {
+		if tr.Get(key).MustGet() == nil {
 			tr.Set(key, []byte(""))
 			return s.Sub(candidate), nil
 		}

@@ -185,8 +185,7 @@ func (rr RangeResult) Iterator() *RangeIterator {
 // objects) satisfying the range specified in a range read. RangeIterator is
 // constructed with the (RangeResult).Iterator method.
 //
-// You must call Advance and get a true result prior to calling GetWithError or
-// GetOrPanic.
+// You must call Advance and get a true result prior to calling Get or MustGet.
 //
 // RangeIterator should not be copied or used concurrently from multiple
 // goroutines, but multiple RangeIterators may be constructed from a single
@@ -208,8 +207,8 @@ type RangeIterator struct {
 
 // Advance attempts to advance the iterator to the next key-value pair. Advance
 // returns true if there are more key-value pairs satisfying the range, or false
-// if the range has been exhausted. You must call this before every call to
-// GetWithError or GetOrPanic.
+// if the range has been exhausted. You must call this before every call to Get
+// or MustGet.
 func (ri *RangeIterator) Advance() bool {
 	if ri.done {
 		return false
@@ -219,7 +218,7 @@ func (ri *RangeIterator) Advance() bool {
 		return true
 	}
 
-	ri.kvs, ri.more, ri.err = ri.f.GetWithError()
+	ri.kvs, ri.more, ri.err = ri.f.Get()
 	ri.index = 0
 	ri.f = nil
 	
@@ -253,11 +252,11 @@ func (ri *RangeIterator) fetchNextBatch() {
 	ri.f = &f
 }
 
-// GetWithError returns the next KeyValue in a range read, or an error if one of
-// the asynchronous operations associated with this range did not successfully
+// Get returns the next KeyValue in a range read, or an error if one of the
+// asynchronous operations associated with this range did not successfully
 // complete. The Advance method of this RangeIterator must have returned true
-// prior to calling GetWithError.
-func (ri *RangeIterator) GetWithError() (kv KeyValue, e error) {
+// prior to calling Get.
+func (ri *RangeIterator) Get() (kv KeyValue, e error) {
 	if ri.err != nil {
 		e = ri.err
 		return
@@ -274,12 +273,12 @@ func (ri *RangeIterator) GetWithError() (kv KeyValue, e error) {
 	return
 }
 
-// GetOrPanic returns the next KeyValue in a range read, or panics if one of the
+// MustGet returns the next KeyValue in a range read, or panics if one of the
 // asynchronous operations associated with this range did not successfully
 // complete. The Advance method of this RangeIterator must have returned true
-// prior to calling GetWithError.
-func (ri *RangeIterator) GetOrPanic() KeyValue {
-	kv, e := ri.GetWithError()
+// prior to calling MustGet.
+func (ri *RangeIterator) MustGet() KeyValue {
+	kv, e := ri.Get()
 	if e != nil {
 		panic(e)
 	}

@@ -92,7 +92,7 @@ func retryable(wrapped func() (interface{}, error), onError func(Error) FutureNi
 
 		ep, ok := e.(Error)
 		if ok {
-			e = onError(ep).GetWithError()
+			e = onError(ep).Get()
 		}
 
 		/* If OnError returns an error, then it's not
@@ -110,9 +110,9 @@ func retryable(wrapped func() (interface{}, error), onError func(Error) FutureNi
 // retried or, if fatal, return the error to the caller.
 //
 // When working with Future objects in a transactional function, you may either
-// explicity check and return error values using GetWithError, or call
-// GetOrPanic. Transact will recover a panicked Error and either retry the
-// transaction or return the error.
+// explicity check and return error values using Get, or call MustGet. Transact
+// will recover a panicked Error and either retry the transaction or return the
+// error.
 //
 // Do not return Future objects from the function provided to Transact. The
 // Transaction created by Transact may be finalized at any point after Transact
@@ -135,7 +135,7 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 		ret, e = f(tr)
 
 		if e == nil {
-			e = tr.Commit().GetWithError()
+			e = tr.Commit().Get()
 		}
 
 		return
@@ -150,9 +150,9 @@ func (d Database) Transact(f func(Transaction) (interface{}, error)) (interface{
 // retried or, if fatal, return the error to the caller.
 //
 // When working with Future objects in a read-only transactional function, you
-// may either explicity check and return error values using GetWithError, or
-// call GetOrPanic. ReadTransact will recover a panicked Error and either retry
-// the transaction or return the error.
+// may either explicity check and return error values using Get, or call
+// MustGet. ReadTransact will recover a panicked Error and either retry the
+// transaction or return the error.
 //
 // Do not return Future objects from the function provided to ReadTransact. The
 // Transaction created by ReadTransact may be finalized at any point after
@@ -175,7 +175,7 @@ func (d Database) ReadTransact(f func(ReadTransaction) (interface{}, error)) (in
 		ret, e = f(tr)
 
 		if e == nil {
-			e = tr.Commit().GetWithError()
+			e = tr.Commit().Get()
 		}
 
 		return

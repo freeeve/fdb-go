@@ -47,17 +47,8 @@ func ExampleOpenDefault() {
 }
 
 func ExampleTransactor() {
-	e := fdb.APIVersion(200)
-	if e != nil {
-		fmt.Printf("Unable to set API version: %v\n", e)
-		return
-	}
-
-	db, e := fdb.OpenDefault()
-	if e != nil {
-		fmt.Printf("Unable to open default database: %v\n", e)
-		return
-	}
+	fdb.MustAPIVersion(200)
+	db := fdb.MustOpenDefault()
 
 	setOne := func(t fdb.Transactor, key fdb.Key, value []byte) error {
 		fmt.Printf("setOne called with:  %T\n", t)
@@ -79,6 +70,8 @@ func ExampleTransactor() {
 		})
 		return e
 	}
+
+	var e error
 
 	fmt.Println("Calling setOne with a database:")
 	e = setOne(db, []byte("foo"), []byte("bar"))
@@ -105,22 +98,13 @@ func ExampleTransactor() {
 }
 
 func ExampleReadTransactor() {
-	e := fdb.APIVersion(200)
-	if e != nil {
-		fmt.Printf("Unable to set API version: %v\n", e)
-		return
-	}
-
-	db, e := fdb.OpenDefault()
-	if e != nil {
-		fmt.Printf("Unable to open default database: %v\n", e)
-		return
-	}
+	fdb.MustAPIVersion(200)
+	db := fdb.MustOpenDefault()
 
 	getOne := func(rt fdb.ReadTransactor, key fdb.Key) ([]byte, error) {
 		fmt.Printf("getOne called with: %T\n", rt)
 		ret, e := rt.ReadTransact(func(rtr fdb.ReadTransaction) (interface{}, error) {
-			return rtr.Get(key).GetOrPanic(), nil
+			return rtr.Get(key).MustGet(), nil
 		})
 		if e != nil {
 			return nil, e
@@ -140,6 +124,8 @@ func ExampleReadTransactor() {
 		}
 		return ret.([][]byte), nil
 	}
+
+	var e error
 
 	fmt.Println("Calling getOne with a database:")
 	_, e = getOne(db, fdb.Key("foo"))
@@ -165,17 +151,8 @@ func ExampleReadTransactor() {
 }
 
 func ExamplePrefixRange() {
-	e := fdb.APIVersion(200)
-	if e != nil {
-		fmt.Printf("Unable to set API version: %v\n", e)
-		return
-	}
-
-	db, e := fdb.OpenDefault()
-	if e != nil {
-		fmt.Printf("Unable to open default database: %v\n", e)
-		return
-	}
+	fdb.MustAPIVersion(200)
+	db := fdb.MustOpenDefault()
 
 	tr, e := db.CreateTransaction()
 	if e != nil {
@@ -213,17 +190,8 @@ func ExamplePrefixRange() {
 }
 
 func ExampleRangeIterator() {
-	e := fdb.APIVersion(200)
-	if e != nil {
-		fmt.Printf("Unable to set API version: %v\n", e)
-		return
-	}
-
-	db, e := fdb.OpenDefault()
-	if e != nil {
-		fmt.Printf("Unable to open default database: %v\n", e)
-		return
-	}
+	fdb.MustAPIVersion(200)
+	db := fdb.MustOpenDefault()
 
 	tr, e := db.CreateTransaction()
 	if e != nil {
@@ -243,7 +211,7 @@ func ExampleRangeIterator() {
 
 	// Advance will return true until the iterator is exhausted
 	for ri.Advance() {
-		kv, e := ri.GetWithError()
+		kv, e := ri.Get()
 		if e != nil {
 			fmt.Printf("Unable to read next value: %v\n", e)
 			return

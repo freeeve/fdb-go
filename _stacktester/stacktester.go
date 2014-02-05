@@ -61,17 +61,17 @@ func (sm *StackMachine) waitAndPop() (ret stackEntry) {
 	case fdb.Key:
 		ret.item = []byte(el)
 	case fdb.FutureNil:
-		el.GetOrPanic()
+		el.MustGet()
 		ret.item = []byte("RESULT_NOT_PRESENT")
 	case fdb.FutureByteSlice:
-		v := el.GetOrPanic()
+		v := el.MustGet()
 		if v != nil {
 			ret.item = v
 		} else {
 			ret.item = []byte("RESULT_NOT_PRESENT")
 		}
 	case fdb.FutureKey:
-		ret.item = []byte(el.GetOrPanic())
+		ret.item = []byte(el.MustGet())
 	case nil:
 	default:
 		log.Fatalf("Don't know how to pop stack element %v %T\n", el, el)
@@ -222,7 +222,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		sm.store(idx, sm.tr.OnError(fdb.Error{int(sm.waitAndPop().item.(int64))}))
 	case op == "GET_READ_VERSION":
 		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
-			sm.lastVersion = rtr.GetReadVersion().GetOrPanic()
+			sm.lastVersion = rtr.GetReadVersion().MustGet()
 			sm.store(idx, []byte("GOT_READ_VERSION"))
 			return nil, nil
 		})
@@ -236,7 +236,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 		prefix := sm.waitAndPop().item.([]byte)
 		for i := len(sm.stack)-1; i >= 0; i-- {
 			if i % 100 == 0 {
-				sm.tr.Commit().GetOrPanic()
+				sm.tr.Commit().MustGet()
 			}
 
 			el := sm.waitAndPop()
@@ -257,7 +257,7 @@ func (sm *StackMachine) processInst(idx int, inst tuple.Tuple) {
 
 			sm.tr.Set(fdb.Key(pk), pv[:vl])
 		}
-		sm.tr.Commit().GetOrPanic()
+		sm.tr.Commit().MustGet()
 	case op == "GET":
 		_, e = rt.ReadTransact(func (rtr fdb.ReadTransaction) (interface{}, error) {
 			sm.store(idx, rtr.Get(fdb.Key(sm.waitAndPop().item.([]byte))))

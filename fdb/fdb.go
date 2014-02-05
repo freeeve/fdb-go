@@ -134,6 +134,15 @@ func APIVersion(version int) error {
 	return nil
 }
 
+// MustAPIVersion is like APIVersion but panics if the API version is not
+// supported.
+func MustAPIVersion(version int) {
+	err := APIVersion(version)
+	if err != nil {
+		panic(err)
+	}
+}
+
 var apiVersion int
 var networkStarted bool
 var networkMutex sync.Mutex
@@ -186,6 +195,16 @@ func OpenDefault() (Database, error) {
 	return Open(DefaultClusterFile, []byte("DB"))
 }
 
+// MustOpenDefault is like OpenDefault but panics if the default database cannot
+// be opened.
+func MustOpenDefault() Database {
+	db, err := OpenDefault()
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
 // Open returns a database handle to the named database from the FoundationDB
 // cluster identified by the provided cluster file and database name. The
 // FoundationDB client networking engine will be initialized first, if
@@ -228,6 +247,15 @@ func Open(clusterFile string, dbName []byte) (Database, error) {
 	}
 
 	return db, nil
+}
+
+// MustOpen is like Open but panics if the database cannot be opened.
+func MustOpen(clusterFile string, dbName []byte) Database {
+	db, err := Open(clusterFile, dbName)
+	if err != nil {
+		panic(err)
+	}
+	return db
 }
 
 func createCluster(clusterFile string) (Cluster, error) {

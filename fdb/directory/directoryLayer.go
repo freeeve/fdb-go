@@ -101,7 +101,7 @@ func (dl directoryLayer) createOrOpen(rtr fdb.ReadTransaction, tr *fdb.Transacti
 			return nil, errors.New("the directory already exists")
 		}
 
-		if layer != nil && bytes.Compare(existingNode._layer.GetOrPanic(), layer) != 0 {
+		if layer != nil && bytes.Compare(existingNode._layer.MustGet(), layer) != 0 {
 			return nil, errors.New("the directory was created with an incompatible layer")
 		}
 
@@ -320,7 +320,7 @@ func (dl directoryLayer) Move(t fdb.Transactor, oldPath []string, newPath []stri
 
 		dl.removeFromParent(tr, oldPath)
 
-		return dl.contentsOfNode(oldNode.subspace, newPath, oldNode._layer.GetOrPanic())
+		return dl.contentsOfNode(oldNode.subspace, newPath, oldNode._layer.MustGet())
 	})
 	if e != nil {
 		return nil, e
@@ -406,7 +406,7 @@ func (dl directoryLayer) subdirNames(rtr fdb.ReadTransaction, node subspace.Subs
 	var ret []string
 
 	for ri.Advance() {
-		kv := ri.GetOrPanic()
+		kv := ri.MustGet()
 
 		p, e := sd.Unpack(kv.Key)
 		if e != nil {
@@ -428,7 +428,7 @@ func (dl directoryLayer) subdirNodes(tr fdb.Transaction, node subspace.Subspace)
 	var ret []subspace.Subspace
 
 	for ri.Advance() {
-		kv := ri.GetOrPanic()
+		kv := ri.MustGet()
 
 		ret = append(ret, dl.nodeWithPrefix(kv.Value))
 	}
@@ -486,7 +486,7 @@ func (dl directoryLayer) isPrefixFree(rtr fdb.ReadTransaction, prefix []byte) (b
 }
 
 func (dl directoryLayer) checkVersion(rtr fdb.ReadTransaction, tr *fdb.Transaction) error {
-	version := rtr.Get(dl.rootNode.Sub([]byte("version"))).GetOrPanic()
+	version := rtr.Get(dl.rootNode.Sub([]byte("version"))).MustGet()
 
 	if version == nil {
 		if tr != nil {
@@ -566,8 +566,8 @@ func (dl directoryLayer) nodeWithPrefix(prefix []byte) subspace.Subspace {
 func (dl directoryLayer) find(rtr fdb.ReadTransaction, path []string) *node {
 	n := &node{dl.rootNode, []string{}, path, nil}
 	for i := range path {
-		n = &node{dl.nodeWithPrefix(rtr.Get(n.subspace.Sub(_SUBDIRS, path[i])).GetOrPanic()), path[:i+1], path, nil}
-		if !n.exists() || bytes.Compare(n.layer(rtr).GetOrPanic(), []byte("partition")) == 0 {
+		n = &node{dl.nodeWithPrefix(rtr.Get(n.subspace.Sub(_SUBDIRS, path[i])).MustGet()), path[:i+1], path, nil}
+		if !n.exists() || bytes.Compare(n.layer(rtr).MustGet(), []byte("partition")) == 0 {
 			return n
 		}
 	}

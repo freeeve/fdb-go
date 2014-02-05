@@ -47,24 +47,24 @@ import (
 
 // A Future represents a value (or error) to be available at some later
 // time. Asynchronous FDB API functions return one of the types that implement
-// the Future interface. All Future types additionally implement GetWithError
-// and GetOrPanic methods with different return types. Calling BlockUntilReady,
-// GetWithError or GetOrPanic will block the calling goroutine until the Future
-// is ready.
+// the Future interface. All Future types additionally implement Get and MustGet
+// methods with different return types. Calling BlockUntilReady, Get or MustGet
+// will block the calling goroutine until the Future is ready.
 type Future interface {
 	// BlockUntilReady blocks the calling goroutine until the future is ready. A
-	// future becomes ready either when it receives a value of its enclosed type (if
-	// any) or is set to an error state.
+	// future becomes ready either when it receives a value of its enclosed type
+	// (if any) or is set to an error state.
 	BlockUntilReady()
 
 	// IsReady returns true if the future is ready, and false otherwise, without
-	// blocking. A future is ready either when has received a value of its enclosed
-	// type (if any) or has been set to an error state.
+	// blocking. A future is ready either when has received a value of its
+	// enclosed type (if any) or has been set to an error state.
 	IsReady() bool
 
-	// Cancel cancels a future and its associated asynchronous operation. If called
-	// before the future becomes ready, attempts to access the future will return an
-	// error. Cancel has no effect if the future is already ready.
+	// Cancel cancels a future and its associated asynchronous operation. If
+	// called before the future becomes ready, attempts to access the future
+	// will return an error. Cancel has no effect if the future is already
+	// ready.
 	//
 	// Note that even if a future is not ready, the associated asynchronous
 	// operation may already have completed and be unable to be cancelled.
@@ -103,21 +103,21 @@ func (f future) Cancel() {
 	C.fdb_future_cancel(f.ptr)
 }
 
-// FutureByteSlice represents the asynchronous result of a function that returns a
-// value from a database. FutureByteSlice is a lightweight object that may be
+// FutureByteSlice represents the asynchronous result of a function that returns
+// a value from a database. FutureByteSlice is a lightweight object that may be
 // efficiently copied, and is safe for concurrent use by multiple goroutines.
 type FutureByteSlice interface {
-	// GetWithError returns a database value (or nil if there is no value), or an
-	// error if the asynchronous operation associated with this future did not
-	// successfully complete. The current goroutine will be blocked until the future
-	// is ready.
-	GetWithError() ([]byte, error)
-
-	// GetOrPanic returns a database value (or nil if there is no value), or panics
+	// Get returns a database value (or nil if there is no value), or an error
 	// if the asynchronous operation associated with this future did not
-	// successfully complete. The current goroutine will be blocked until the future
-	// is ready.
-	GetOrPanic() []byte
+	// successfully complete. The current goroutine will be blocked until the
+	// future is ready.
+	Get() ([]byte, error)
+
+	// MustGet returns a database value (or nil if there is no value), or panics
+	// if the asynchronous operation associated with this future did not
+	// successfully complete. The current goroutine will be blocked until the
+	// future is ready.
+	MustGet() []byte
 
 	Future
 }
@@ -129,7 +129,7 @@ type futureByteSlice struct {
 	o sync.Once
 }
 
-func (f *futureByteSlice) GetWithError() ([]byte, error) {
+func (f *futureByteSlice) Get() ([]byte, error) {
 	f.o.Do(func() {
 		var present C.fdb_bool_t
 		var value *C.uint8_t
@@ -151,8 +151,8 @@ func (f *futureByteSlice) GetWithError() ([]byte, error) {
 	return f.v, f.e
 }
 
-func (f *futureByteSlice) GetOrPanic() []byte {
-	val, err := f.GetWithError()
+func (f *futureByteSlice) MustGet() []byte {
+	val, err := f.Get()
 	if err != nil {
 		panic(err)
 	}
@@ -163,15 +163,15 @@ func (f *futureByteSlice) GetOrPanic() []byte {
 // from a database. FutureKey is a lightweight object that may be efficiently
 // copied, and is safe for concurrent use by multiple goroutines.
 type FutureKey interface {
-	// GetWithError returns a database key or an error if the asynchronous operation
+	// Get returns a database key or an error if the asynchronous operation
 	// associated with this future did not successfully complete. The current
 	// goroutine will be blocked until the future is ready.
-	GetWithError() (Key, error)
+	Get() (Key, error)
 
-	// GetOrPanic returns a database key, or panics if the asynchronous operation
+	// MustGet returns a database key, or panics if the asynchronous operation
 	// associated with this future did not successfully complete. The current
 	// goroutine will be blocked until the future is ready.
-	GetOrPanic() Key
+	MustGet() Key
 
 	Future
 }
@@ -183,7 +183,7 @@ type futureKey struct {
 	o sync.Once
 }
 
-func (f *futureKey) GetWithError() (Key, error) {
+func (f *futureKey) Get() (Key, error) {
 	f.o.Do(func() {
 		var value *C.uint8_t
 		var length C.int
@@ -202,8 +202,8 @@ func (f *futureKey) GetWithError() (Key, error) {
 	return f.k, f.e
 }
 
-func (f *futureKey) GetOrPanic() Key {
-	val, err := f.GetWithError()
+func (f *futureKey) MustGet() Key {
+	val, err := f.Get()
 	if err != nil {
 		panic(err)
 	}
@@ -214,15 +214,15 @@ func (f *futureKey) GetOrPanic() Key {
 // value. FutureNil is a lightweight object that may be efficiently copied, and
 // is safe for concurrent use by multiple goroutines.
 type FutureNil interface {
-	// GetWithError returns an error if the asynchronous operation associated with
-	// this future did not successfully complete. The current goroutine will be
+	// Get returns an error if the asynchronous operation associated with this
+	// future did not successfully complete. The current goroutine will be
 	// blocked until the future is ready.
-	GetWithError() error
+	Get() error
 
-	// GetOrPanic panics if the asynchronous operation associated with this future
-	// did not successfully complete. The current goroutine will be blocked until
-	// the future is ready.
-	GetOrPanic()
+	// MustGet panics if the asynchronous operation associated with this future
+	// did not successfully complete. The current goroutine will be blocked
+	// until the future is ready.
+	MustGet()
 
 	Future
 }
@@ -231,7 +231,7 @@ type futureNil struct {
 	*future
 }
 
-func (f futureNil) GetWithError() error {
+func (f futureNil) Get() error {
 	f.BlockUntilReady()
 	if err := C.fdb_future_get_error(f.ptr); err != 0 {
 		return Error{int(err)}
@@ -240,8 +240,8 @@ func (f futureNil) GetWithError() error {
 	return nil
 }
 
-func (f futureNil) GetOrPanic() {
-	if err := f.GetWithError(); err != nil {
+func (f futureNil) MustGet() {
+	if err := f.Get(); err != nil {
 		panic(err)
 	}
 }
@@ -262,7 +262,7 @@ func stringRefToSlice(ptr uintptr) []byte {
 	return C.GoBytes(src, size)
 }
 
-func (f futureKeyValueArray) GetWithError() ([]KeyValue, bool, error) {
+func (f futureKeyValueArray) Get() ([]KeyValue, bool, error) {
 	f.BlockUntilReady()
 
 	var kvs *C.void
@@ -290,15 +290,15 @@ func (f futureKeyValueArray) GetWithError() ([]KeyValue, bool, error) {
 // database version. FutureInt64 is a lightweight object that may be efficiently
 // copied, and is safe for concurrent use by multiple goroutines.
 type FutureInt64 interface {
-	// GetWithError returns a database version or an error if the asynchronous
-	// operation associated with this future did not successfully complete. The
-	// current goroutine will be blocked until the future is ready.
-	GetWithError() (int64, error)
+	// Get returns a database version or an error if the asynchronous operation
+	// associated with this future did not successfully complete. The current
+	// goroutine will be blocked until the future is ready.
+	Get() (int64, error)
 
-	// GetOrPanic returns a database version, or panics if the asynchronous
+	// MustGet returns a database version, or panics if the asynchronous
 	// operation associated with this future did not successfully complete. The
 	// current goroutine will be blocked until the future is ready.
-	GetOrPanic() int64
+	MustGet() int64
 
 	Future
 }
@@ -307,7 +307,7 @@ type futureInt64 struct {
 	*future
 }
 
-func (f futureInt64) GetWithError() (int64, error) {
+func (f futureInt64) Get() (int64, error) {
 	f.BlockUntilReady()
 
 	var ver C.int64_t
@@ -317,8 +317,8 @@ func (f futureInt64) GetWithError() (int64, error) {
 	return int64(ver), nil
 }
 
-func (f futureInt64) GetOrPanic() int64 {
-	val, err := f.GetWithError()
+func (f futureInt64) MustGet() int64 {
+	val, err := f.Get()
 	if err != nil {
 		panic(err)
 	}
@@ -330,15 +330,15 @@ func (f futureInt64) GetOrPanic() int64 {
 // may be efficiently copied, and is safe for concurrent use by multiple
 // goroutines.
 type FutureStringSlice interface {
-	// GetWithError returns a slice of strings or an error if the asynchronous
-	// operation associated with this future did not successfully complete. The
-	// current goroutine will be blocked until the future is ready.
-	GetWithError() ([]string, error)
+	// Get returns a slice of strings or an error if the asynchronous operation
+	// associated with this future did not successfully complete. The current
+	// goroutine will be blocked until the future is ready.
+	Get() ([]string, error)
 
-	// GetOrPanic returns a slice of strings or panics if the asynchronous
+	// MustGet returns a slice of strings or panics if the asynchronous
 	// operation associated with this future did not successfully complete. The
 	// current goroutine will be blocked until the future is ready.
-	GetOrPanic() []string
+	MustGet() []string
 
 	Future
 }
@@ -347,7 +347,7 @@ type futureStringSlice struct {
 	*future
 }
 
-func (f futureStringSlice) GetWithError() ([]string, error) {
+func (f futureStringSlice) Get() ([]string, error) {
 	f.BlockUntilReady()
 
 	var strings **C.char
@@ -366,8 +366,8 @@ func (f futureStringSlice) GetWithError() ([]string, error) {
 	return ret, nil
 }
 
-func (f futureStringSlice) GetOrPanic() []string {
-	val, err := f.GetWithError()
+func (f futureStringSlice) MustGet() []string {
+	val, err := f.Get()
 	if err != nil {
 		panic(err)
 	}
