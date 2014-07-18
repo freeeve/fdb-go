@@ -40,9 +40,9 @@ package fdb
 import "C"
 
 import (
-	"unsafe"
-	"sync"
 	"runtime"
+	"sync"
+	"unsafe"
 )
 
 // A Future represents a value (or error) to be available at some later
@@ -81,14 +81,15 @@ func newFuture(ptr *C.FDBFuture) *future {
 	return f
 }
 
-func fdb_future_block_until_ready(f *C.FDBFuture) {
+func fdb_future_block_until_ready(f *C.FDBFuture) *chan struct{} {
 	if C.fdb_future_is_ready(f) != 0 {
-		return
+		return nil
 	}
 
 	ch := make(chan struct{}, 1)
 	C.go_set_callback(unsafe.Pointer(f), unsafe.Pointer(&ch))
 	<-ch
+	return &ch
 }
 
 func (f future) BlockUntilReady() {
@@ -250,8 +251,8 @@ type futureKeyValueArray struct {
 	*future
 }
 
-func stringRefToSlice(ptr uintptr) []byte {
-	size := *((*C.int)(unsafe.Pointer(ptr+8)))
+func stringRefToSlice(ptr unsafe.Pointer) []byte {
+	size := *((*C.int)(unsafe.Pointer(uintptr(ptr) + 8)))
 
 	if size == 0 {
 		return []byte{}
@@ -276,14 +277,14 @@ func (f futureKeyValueArray) Get() ([]KeyValue, bool, error) {
 	ret := make([]KeyValue, int(count))
 
 	for i := 0; i < int(count); i++ {
-		kvptr := uintptr(unsafe.Pointer(kvs)) + uintptr(i * 24)
+		kvptr := unsafe.Pointer(uintptr(unsafe.Pointer(kvs)) + uintptr(i*24))
+		vptr := unsafe.Pointer(uintptr(unsafe.Pointer(kvs)) + uintptr(i*24+12))
 
 		ret[i].Key = stringRefToSlice(kvptr)
-		ret[i].Value = stringRefToSlice(kvptr + 12)
-
+		ret[i].Value = stringRefToSlice(vptr)
 	}
 
- 	return ret, (more != 0), nil
+	return ret, (more != 0), nil
 }
 
 // FutureInt64 represents the asynchronous result of a function that returns a
@@ -360,7 +361,7 @@ func (f futureStringSlice) Get() ([]string, error) {
 	ret := make([]string, int(count))
 
 	for i := 0; i < int(count); i++ {
-		ret[i] = C.GoString((*C.char)(*(**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(strings))+uintptr(i*8)))))
+		ret[i] = C.GoString((*C.char)(*(**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(strings)) + uintptr(i*8)))))
 	}
 
 	return ret, nil

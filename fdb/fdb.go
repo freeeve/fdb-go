@@ -29,10 +29,10 @@ package fdb
 import "C"
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"unsafe"
-	"fmt"
 )
 
 /* Would put this in futures.go but for the documented issue with
@@ -50,7 +50,7 @@ type Transactor interface {
 	// Transact executes the caller-provided function, providing it with a
 	// Transaction (itself a Transactor, allowing composition of transactional
 	// functions).
-	Transact(func (Transaction) (interface{}, error)) (interface{}, error)
+	Transact(func(Transaction) (interface{}, error)) (interface{}, error)
 
 	// All Transactors are also ReadTransactors, allowing them to be used with
 	// read-only transactional functions.
@@ -65,7 +65,7 @@ type ReadTransactor interface {
 	// ReadTransact executes the caller-provided function, providing it with a
 	// ReadTransaction (itself a ReadTransactor, allowing composition of
 	// read-only transactional functions).
-	ReadTransact(func (ReadTransaction) (interface{}, error)) (interface{}, error)
+	ReadTransact(func(ReadTransaction) (interface{}, error)) (interface{}, error)
 }
 
 func setOpt(setter func(*C.uint8_t, C.int) C.fdb_error_t, param []byte) error {
